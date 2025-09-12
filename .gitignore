@@ -1,0 +1,85 @@
+### Node dependencies
+node_modules/
+
+### (Remove this if you are NOT using Next.js)
+.next/
+
+### Logs & diagnostics
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+nodemon-debug.log
+
+### Runtime data / pids
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+### Coverage outputs
+coverage/
+*.lcov
+
+### Build artifacts (add if you generate these)
+dist/
+build/
+out/
+
+### Environment & secrets (commit only the example file)
+.env
+.env.local
+.env.*.local
+.env.test
+.env.development.local
+.env.production.local
+.env.preview.local
+
+### Database dumps / local data
+*.sql
+*.sqlite
+*.sqlite3
+dump.rdb
+
+### File uploads / temp storage (adjust folder name if different)
+uploads/
+temp/
+tmp/
+
+### Caches
+.npm
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.pnpm-store
+
+### Editor / IDE settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+.idea/
+*.iml
+.fleet/
+
+### OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+### Archives / packages
+*.tgz
+
+### Misc
+*.swp
+*.bak
+*.orig
+*.rej
+
+### IMPORTANT: Keep lockfiles (package-lock.json / pnpm-lock.yaml / yarn.lock) committed for reproducible installs.
