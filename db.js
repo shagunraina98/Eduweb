@@ -52,7 +52,5 @@ async function testConnection() {
 
 module.exports = { getPool, testConnection };
 
-getPool().query("SELECT 1")
-  .then(() => console.log("✅ DB connection works"))
-  .catch(err => console.error("❌ DB connection failed:", err));
+
  
