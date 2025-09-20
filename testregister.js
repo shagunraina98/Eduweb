@@ -2,7 +2,7 @@ const axios = require("axios");
 
 async function testRegister() {
   try {
-    const res = await axios.post("http://localhost:5000/api/auth/register", {
+    const res = await axios.post("http://eduweb-eo8i.onrender.com/api/auth/register", {
       name: "Frontend User",
       email: "frontend@test.com",
       password: "test123",

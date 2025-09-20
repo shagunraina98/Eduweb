@@ -3,7 +3,7 @@ const axios = require('axios');
 async function fixMathQuestion() {
   try {
     // Login as admin
-    const loginResponse = await axios.post('http://localhost:5000/api/auth/login', {
+    const loginResponse = await axios.post('http://eduweb-eo8i.onrender.com/api/auth/login', {
       email: 'admin@admin.com',
       password: 'admin123'
     });
@@ -12,7 +12,7 @@ async function fixMathQuestion() {
     console.log('✓ Logged in as admin');
     
     // Get questions to find the math question
-    const questionsResponse = await axios.get('http://localhost:5000/api/questions', {
+    const questionsResponse = await axios.get('http://eduweb-eo8i.onrender.com/api/questions', {
       headers: { Authorization: `Bearer ${token}` }
     });
     
@@ -48,7 +48,7 @@ async function fixMathQuestion() {
     
     console.log('Updating options to:', updatedOptions);
     
-    const updateResponse = await axios.put(`http://localhost:5000/api/questions/${mathQuestion.id}`, {
+    const updateResponse = await axios.put(`http://eduweb-eo8i.onrender.com/api/questions/${mathQuestion.id}`, {
       options: updatedOptions
     }, {
       headers: { 
@@ -60,7 +60,7 @@ async function fixMathQuestion() {
     console.log('✅ Update successful:', updateResponse.data);
     
     // Verify the fix
-    const verifyResponse = await axios.get('http://localhost:5000/api/questions', {
+    const verifyResponse = await axios.get('http://eduweb-eo8i.onrender.com/api/questions', {
       headers: { Authorization: `Bearer ${token}` }
     });
     

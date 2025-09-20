@@ -2,7 +2,7 @@ const axios = require("axios");
 
 async function createAdmin() {
   try {
-    const res = await axios.post("http://localhost:5000/api/auth/register", {
+    const res = await axios.post("http://eduweb-eo8i.onrender.com/api/auth/register", {
       name: "Admin User",
       email: "admin@admin.com",
       password: "admin123",

@@ -3,7 +3,7 @@ const axios = require('axios');
 async function testAdminInterfaceUpdate() {
   try {
     // Login as admin
-    const loginResponse = await axios.post('http://localhost:5000/api/auth/login', {
+    const loginResponse = await axios.post('http://eduweb-eo8i.onrender.com/api/auth/login', {
       email: 'admin@admin.com',
       password: 'admin123'
     });
@@ -12,7 +12,7 @@ async function testAdminInterfaceUpdate() {
     console.log('✓ Logged in as admin');
     
     // Get a question to edit
-    const questionsResponse = await axios.get('http://localhost:5000/api/questions', {
+    const questionsResponse = await axios.get('http://eduweb-eo8i.onrender.com/api/questions', {
       headers: { Authorization: `Bearer ${token}` }
     });
     
@@ -58,7 +58,7 @@ async function testAdminInterfaceUpdate() {
     
     console.log('\n🔄 Sending update with payload:', JSON.stringify(updatePayload, null, 2));
     
-    const updateResponse = await axios.put(`http://localhost:5000/api/questions/${targetQuestion.id}`, updatePayload, {
+    const updateResponse = await axios.put(`http://eduweb-eo8i.onrender.com/api/questions/${targetQuestion.id}`, updatePayload, {
       headers: { 
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -70,7 +70,7 @@ async function testAdminInterfaceUpdate() {
     // Wait and verify
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    const verifyResponse = await axios.get('http://localhost:5000/api/questions', {
+    const verifyResponse = await axios.get('http://eduweb-eo8i.onrender.com/api/questions', {
       headers: { Authorization: `Bearer ${token}` }
     });
     

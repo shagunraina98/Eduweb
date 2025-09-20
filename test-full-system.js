@@ -6,7 +6,7 @@ async function testFullSystem() {
     
     // Test admin login
     console.log('\n1. Testing admin login...');
-    const adminLogin = await axios.post('http://localhost:5000/api/auth/login', {
+    const adminLogin = await axios.post('http://eduweb-eo8i.onrender.com/api/auth/login', {
       email: 'admin@admin.com',
       password: 'admin123'
     });
@@ -14,7 +14,7 @@ async function testFullSystem() {
     
     // Test student login
     console.log('\n2. Testing student login...');
-    const studentLogin = await axios.post('http://localhost:5000/api/auth/login', {
+    const studentLogin = await axios.post('http://eduweb-eo8i.onrender.com/api/auth/login', {
       email: 'student@test.com',
       password: 'student123'
     });
@@ -22,7 +22,7 @@ async function testFullSystem() {
     
     // Test fetching questions
     console.log('\n3. Testing questions API...');
-    const questionsResponse = await axios.get('http://localhost:5000/api/questions', {
+    const questionsResponse = await axios.get('http://eduweb-eo8i.onrender.com/api/questions', {
       headers: { Authorization: `Bearer ${adminLogin.data.token}` }
     });
     console.log(`✅ Found ${questionsResponse.data.length} questions`);
@@ -32,7 +32,7 @@ async function testFullSystem() {
     
     // Test quiz API
     console.log('\n4. Testing quiz API...');
-    const quizResponse = await axios.get('http://localhost:5000/api/quiz', {
+    const quizResponse = await axios.get('http://eduweb-eo8i.onrender.com/api/quiz', {
       headers: { Authorization: `Bearer ${studentLogin.data.token}` }
     });
     console.log(`✅ Quiz API returned ${quizResponse.data.length} questions`);
@@ -48,7 +48,7 @@ async function testFullSystem() {
       }
     });
     
-    const submissionResponse = await axios.post('http://localhost:5000/api/quiz/submit', {
+    const submissionResponse = await axios.post('http://eduweb-eo8i.onrender.com/api/quiz/submit', {
       answers: answers
     }, {
       headers: { Authorization: `Bearer ${studentLogin.data.token}` }

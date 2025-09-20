@@ -5,7 +5,7 @@ async function quickTest() {
     console.log('🧪 Quick test of Aiven database connection...');
     
     // Test admin login
-    const response = await axios.post('http://localhost:5000/api/auth/login', {
+    const response = await axios.post('http://eduweb-eo8i.onrender.com/api/auth/login', {
       email: 'admin@admin.com',
       password: 'admin123'
     });
@@ -16,7 +16,7 @@ async function quickTest() {
     });
     
     // Test questions API
-    const questionsResponse = await axios.get('http://localhost:5000/api/questions', {
+    const questionsResponse = await axios.get('http://eduweb-eo8i.onrender.com/api/questions', {
       headers: { Authorization: `Bearer ${response.data.token}` }
     });
     

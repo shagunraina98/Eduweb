@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Test the options update functionality
 async function testOptionUpdate() {
-  const baseURL = 'http://localhost:5000';
+  const baseURL = 'http://eduweb-eo8i.onrender.com';
   
   try {
     // First, login as admin to get token
