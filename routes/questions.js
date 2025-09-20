@@ -24,8 +24,8 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     await conn.beginTransaction();
 
     const [result] = await conn.query(
-      'INSERT INTO `questions` (`question_text`, `text`, `subject`, `difficulty`, `type`) VALUES (?, ?, ?, ?, ?)',
-      [text, text, subject, difficulty, type]
+      'INSERT INTO `questions` (`text`, `subject`, `difficulty`, `type`) VALUES (?, ?, ?, ?)',
+      [text, subject, difficulty, type]
     );
     const questionId = result.insertId;
 
@@ -83,7 +83,7 @@ router.get('/', async (req, res) => {
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const [rows] = await pool.query(
-      `SELECT q.id AS question_id, q.\`question_text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`,
+      `SELECT q.id AS question_id, q.\`text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`,
         o.id AS option_id, o.\`label\`, o.\`option_text\`, o.\`is_correct\`
    FROM \`questions\` q
    LEFT JOIN \`options\` o ON o.\`question_id\` = q.id
@@ -97,7 +97,7 @@ router.get('/', async (req, res) => {
       if (!map.has(r.question_id)) {
         map.set(r.question_id, {
           id: r.question_id,
-          text: r.question_text,
+          text: r.text,
           subject: r.subject,
           difficulty: r.difficulty,
           type: r.type,
@@ -156,7 +156,7 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
     if (text || subject || difficulty || type) {
       const fields = [];
       const values = [];
-      if (text) { fields.push('`question_text` = ?, `text` = ?'); values.push(text, text); }
+      if (text) { fields.push('`text` = ?'); values.push(text); }
       if (subject) { fields.push('`subject` = ?'); values.push(subject); }
       if (difficulty) { fields.push('`difficulty` = ?'); values.push(difficulty); }
       if (type) { fields.push('`type` = ?'); values.push(type); }

@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
     const [qRows] = await pool.query(
-      `SELECT q.id, q.\`question_text\` AS text, q.\`subject\`, q.\`difficulty\`, q.\`type\`
+      `SELECT q.id, q.\`text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`
        FROM \`questions\` q
        ${where}
        ORDER BY RAND()

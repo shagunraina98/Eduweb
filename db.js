@@ -25,7 +25,7 @@ let pool;
 
 function getPool() {
   if (!pool) {
-    pool = mysql.createPool({
+    const config = {
       host: DB_HOST,
       user: DB_USER,
       password,
@@ -34,7 +34,16 @@ function getPool() {
       waitForConnections: true,
       connectionLimit: Number(DB_CONNECTION_LIMIT),
       queueLimit: 0
-    });
+    };
+
+    // Add SSL configuration for cloud databases (like Aiven)
+    if (DB_HOST && !DB_HOST.includes('localhost') && !DB_HOST.includes('127.0.0.1')) {
+      config.ssl = {
+        rejectUnauthorized: false // For cloud databases that use self-signed certificates
+      };
+    }
+
+    pool = mysql.createPool(config);
   }
   return pool;
 }
