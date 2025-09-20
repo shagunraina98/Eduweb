@@ -24,6 +24,7 @@ app.get('/ping', (req, res) => {
 
 // Routers
 app.use("/api/questions", questionRoutes);
+app.use('/api/quiz', require('./routes/quiz'));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/admin', require('./routes/admin'));
