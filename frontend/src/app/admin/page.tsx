@@ -83,6 +83,9 @@ export default function AdminPage() {
     setOptions(
       (q.options || []).map(o => ({ id: o.id, label: o.label, option_text: o.option_text, is_correct: !!o.is_correct }))
     );
+    
+    // Scroll to top to show the edit form
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -124,21 +127,37 @@ export default function AdminPage() {
         options: normalizedOptions,
       };
 
+      console.log('Admin form submission:', { editingId, payload, options });
+
       if (editingId) {
-        // Update only base fields for now
-        await api.put(`/api/questions/${editingId}`, {
+        // Update question with all fields including options
+        const updatePayload = {
           text: payload.text,
           subject: payload.subject,
           difficulty: payload.difficulty,
           type: payload.type,
-        }, { headers: { Authorization: `Bearer ${token}` } });
+          options: options.map(o => ({
+            id: o.id, // Include existing ID if available
+            label: o.label,
+            option_text: o.option_text,
+            is_correct: o.is_correct
+          }))
+        };
+        console.log('Sending PUT request with payload:', updatePayload);
+        const response = await api.put(`/api/questions/${editingId}`, updatePayload, { 
+          headers: { Authorization: `Bearer ${token}` } 
+        });
+        console.log('PUT response:', response.data);
       } else {
-        await api.post('/api/questions', payload, { headers: { Authorization: `Bearer ${token}` } });
+        console.log('Sending POST request with payload:', payload);
+        const response = await api.post('/api/questions', payload, { headers: { Authorization: `Bearer ${token}` } });
+        console.log('POST response:', response.data);
       }
       await fetchAll();
       resetForm();
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Failed to save question';
+      console.error('Admin form error:', err);
       setError(msg);
     }
   }

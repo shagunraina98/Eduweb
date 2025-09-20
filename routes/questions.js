@@ -123,27 +123,147 @@ router.get('/', async (req, res) => {
 // PUT /api/questions/:id (admin only)
 router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { text, subject, difficulty, type } = req.body || {};
-  if (!text && !subject && !difficulty && !type) {
-    return res.status(400).json({ error: 'At least one field (text, subject, difficulty, type) must be provided' });
+  const { text, subject, difficulty, type, options } = req.body || {};
+  
+  console.log('PUT /api/questions/:id called with ID:', id);
+  console.log('Request body options:', JSON.stringify(options, null, 2));
+  
+  if (!text && !subject && !difficulty && !type && !options) {
+    return res.status(400).json({ error: 'At least one field (text, subject, difficulty, type, options) must be provided' });
   }
-  const fields = [];
-  const values = [];
-  if (text) { fields.push('`question_text` = ?'); values.push(text); }
-  if (subject) { fields.push('`subject` = ?'); values.push(subject); }
-  if (difficulty) { fields.push('`difficulty` = ?'); values.push(difficulty); }
-  if (type) { fields.push('`type` = ?'); values.push(type); }
-  values.push(id);
 
-  try {
-  const [result] = await pool.query(`UPDATE \`questions\` SET ${fields.join(', ')} WHERE id = ?`, values);
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Not found' });
+  // Validate options if provided
+  if (options && Array.isArray(options)) {
+    for (const [idx, o] of options.entries()) {
+      if (!o || typeof o.label !== 'string' || !o.label.trim() || typeof o.option_text !== 'string' || !o.option_text.trim()) {
+        return res.status(400).json({ error: `options[${idx}] must include non-empty label and option_text` });
+      }
     }
-    return res.json({ ok: true });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // First, verify the question exists
+    const [questionCheck] = await conn.query('SELECT id FROM `questions` WHERE id = ?', [id]);
+    if (questionCheck.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    // Update question fields if provided
+    if (text || subject || difficulty || type) {
+      const fields = [];
+      const values = [];
+      if (text) { fields.push('`question_text` = ?, `text` = ?'); values.push(text, text); }
+      if (subject) { fields.push('`subject` = ?'); values.push(subject); }
+      if (difficulty) { fields.push('`difficulty` = ?'); values.push(difficulty); }
+      if (type) { fields.push('`type` = ?'); values.push(type); }
+      values.push(id);
+
+      const [result] = await conn.query(`UPDATE \`questions\` SET ${fields.join(', ')} WHERE id = ?`, values);
+      console.log('Question update result - affected rows:', result.affectedRows);
+    }
+
+    // Handle options update if provided
+    if (options && Array.isArray(options)) {
+      console.log('Processing', options.length, 'options');
+      
+      // Get current options for this question BEFORE any changes
+      const [currentOptionsBefore] = await conn.query('SELECT id, label, option_text, is_correct FROM `options` WHERE `question_id` = ? ORDER BY id', [id]);
+      console.log('Current options BEFORE update:', currentOptionsBefore);
+      
+      const providedOptionIds = [];
+      
+      // Process each option: UPDATE existing or INSERT new
+      for (const option of options) {
+        const isCorrect = option.is_correct ? 1 : 0;
+        
+        if (option.id && !isNaN(parseInt(option.id))) {
+          const optionId = parseInt(option.id);
+          providedOptionIds.push(optionId);
+          
+          console.log(`Updating option ID ${optionId}:`, {
+            label: option.label.trim(),
+            text: option.option_text.trim(), 
+            isCorrect
+          });
+          
+          const [updateResult] = await conn.query(
+            'UPDATE `options` SET `label` = ?, `option_text` = ?, `is_correct` = ? WHERE id = ? AND `question_id` = ?',
+            [option.label.trim(), option.option_text.trim(), isCorrect, optionId, parseInt(id)]
+          );
+          console.log(`Option ${optionId} update result - affected rows:`, updateResult.affectedRows);
+          
+          if (updateResult.affectedRows === 0) {
+            console.warn(`Warning: Option ${optionId} was not updated - may not exist or belong to question ${id}`);
+          }
+        } else {
+          // Insert new option
+          console.log('Inserting new option:', {
+            questionId: id,
+            label: option.label.trim(),
+            text: option.option_text.trim(),
+            isCorrect
+          });
+          
+          const [insertResult] = await conn.query(
+            'INSERT INTO `options` (`question_id`, `label`, `option_text`, `is_correct`) VALUES (?, ?, ?, ?)',
+            [parseInt(id), option.label.trim(), option.option_text.trim(), isCorrect]
+          );
+          console.log('New option insert result - insertId:', insertResult.insertId);
+          providedOptionIds.push(insertResult.insertId);
+        }
+      }
+
+      // Delete options that are no longer present in the request
+      if (providedOptionIds.length > 0) {
+        console.log('Deleting options NOT in provided IDs:', providedOptionIds);
+        const [deleteResult] = await conn.query(
+          `DELETE FROM \`options\` WHERE \`question_id\` = ? AND id NOT IN (${providedOptionIds.map(() => '?').join(',')})`,
+          [parseInt(id), ...providedOptionIds]
+        );
+        console.log('Delete result - affected rows:', deleteResult.affectedRows);
+      }
+      
+      // Get options AFTER all changes to verify the update
+      const [currentOptionsAfter] = await conn.query('SELECT id, label, option_text, is_correct FROM `options` WHERE `question_id` = ? ORDER BY id', [id]);
+      console.log('Current options AFTER update:', currentOptionsAfter);
+    }
+
+    await conn.commit();
+    console.log('Transaction committed successfully');
+    
+    return res.json({ 
+      ok: true,
+      message: 'Question and options updated successfully'
+    });
+    
   } catch (err) {
-    console.error('Update question error:', err);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    await conn.rollback();
+    console.error('Update question error:', {
+      message: err.message,
+      code: err.code,
+      errno: err.errno,
+      sqlState: err.sqlState,
+      sqlMessage: err.sqlMessage
+    });
+    
+    // Common MySQL data errors -> 400
+    const badDataCodes = new Set([
+      'ER_TRUNCATED_WRONG_VALUE',
+      'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD',
+      'ER_BAD_NULL_ERROR',
+      'ER_DATA_TOO_LONG',
+      'ER_BAD_FIELD_ERROR'
+    ]);
+    if (err && badDataCodes.has(err.code)) {
+      return res.status(400).json({ error: 'Invalid data for one or more fields', details: err.sqlMessage });
+    }
+    return res.status(500).json({ error: 'Internal Server Error', details: err.message });
+  } finally {
+    conn.release();
   }
 });
 
