@@ -10,6 +10,10 @@ interface Question {
   text: string;
   subject: string;
   difficulty: string;
+  exam?: string;
+  unit?: string;
+  topic?: string;
+  subtopic?: string;
   options: Array<{
     id: number;
     label: string;
@@ -17,8 +21,21 @@ interface Question {
   }>;
 }
 
+interface FilterOptions {
+  exam: string[];
+  subject: string[];
+  unit: string[];
+  topic: string[];
+  subtopic: string[];
+  difficulty: string[];
+}
+
 interface QuizFilters {
+  exam: string;
   subject: string;
+  unit: string;
+  topic: string;
+  subtopic: string;
   difficulty: string;
   limit: number;
 }
@@ -42,14 +59,28 @@ export default function QuizPage() {
   const { token, id: userId } = useAuth();
   
   const [filters, setFilters] = useState<QuizFilters>({
+    exam: '',
     subject: '',
+    unit: '',
+    topic: '',
+    subtopic: '',
     difficulty: '',
     limit: 10
+  });
+  
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    exam: [],
+    subject: [],
+    unit: [],
+    topic: [],
+    subtopic: [],
+    difficulty: []
   });
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [selections, setSelections] = useState<{ [questionId: number]: number }>({});
   const [loading, setLoading] = useState(false);
+  const [loadingFilters, setLoadingFilters] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [quizStarted, setQuizStarted] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
@@ -62,12 +93,43 @@ export default function QuizPage() {
     }
   }, [token, quizStarted]);
 
+  // Load filter options on component mount
+  useEffect(() => {
+    loadFilterOptions();
+  }, []);
+
   // Scroll to top when results are displayed
   useEffect(() => {
     if (quizResult) {
       window.scrollTo(0, 0);
     }
   }, [quizResult]);
+
+  const loadFilterOptions = async () => {
+    try {
+      setLoadingFilters(true);
+      console.log('Loading filter options...');
+      const response = await api.get('/api/quiz/start');
+      console.log('Filter options response:', response.data);
+      
+      if (response.data && response.data.filters) {
+        const safeFilterOptions = {
+          exam: Array.isArray(response.data.filters.exam) ? response.data.filters.exam : [],
+          subject: Array.isArray(response.data.filters.subject) ? response.data.filters.subject : [],
+          unit: Array.isArray(response.data.filters.unit) ? response.data.filters.unit : [],
+          topic: Array.isArray(response.data.filters.topic) ? response.data.filters.topic : [],
+          subtopic: Array.isArray(response.data.filters.subtopic) ? response.data.filters.subtopic : [],
+          difficulty: Array.isArray(response.data.filters.difficulty) ? response.data.filters.difficulty : []
+        };
+        setFilterOptions(safeFilterOptions);
+      }
+    } catch (error: any) {
+      console.error('Error loading filter options:', error);
+      console.error('Error response:', error.response?.data);
+    } finally {
+      setLoadingFilters(false);
+    }
+  };
 
   const handleFilterChange = (field: keyof QuizFilters, value: string | number) => {
     setFilters(prev => ({
@@ -81,15 +143,32 @@ export default function QuizPage() {
       setLoading(true);
       const params = new URLSearchParams();
       
+      if (filters.exam) params.append('exam', filters.exam);
       if (filters.subject) params.append('subject', filters.subject);
+      if (filters.unit) params.append('unit', filters.unit);
+      if (filters.topic) params.append('topic', filters.topic);
+      if (filters.subtopic) params.append('subtopic', filters.subtopic);
       if (filters.difficulty) params.append('difficulty', filters.difficulty);
       params.append('limit', filters.limit.toString());
 
       console.log('Fetching quiz with params:', params.toString());
-      const response = await api.get(`/api/quiz?${params.toString()}`);
+      const response = await api.get(`/api/quiz/start?${params.toString()}`);
       console.log('Quiz response:', response.data);
       
-      setQuestions(response.data);
+      if (response.data && response.data.questions) {
+        const safeQuestions = Array.isArray(response.data.questions) ? response.data.questions : [];
+        setQuestions(safeQuestions);
+        
+        if (safeQuestions.length === 0) {
+          alert('No questions found with the selected filters. Please try different filter options.');
+          return;
+        }
+      } else {
+        setQuestions([]);
+        alert('No questions found with the selected filters. Please try different filter options.');
+        return;
+      }
+      
       setQuizStarted(true);
       setSelections({});
       setQuizResult(null);
@@ -160,6 +239,18 @@ export default function QuizPage() {
     setSelections({});
     setQuizResult(null);
     setShowAuthMessage(false);
+    // Reset filters to default values
+    setFilters({
+      exam: '',
+      subject: '',
+      unit: '',
+      topic: '',
+      subtopic: '',
+      difficulty: '',
+      limit: 10
+    });
+    // Reload filter options
+    loadFilterOptions();
   };
 
   const getSelectedOptionForQuestion = (questionId: number) => {
@@ -189,61 +280,190 @@ export default function QuizPage() {
     <div className="bg-slate-800 rounded-lg p-6 mb-6">
       <h2 className="text-xl font-semibold text-white mb-4">Quiz Settings</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label htmlFor="subject" className="block text-sm font-medium text-slate-300 mb-2">
-            Subject
-          </label>
-          <input
-            type="text"
-            id="subject"
-            value={filters.subject}
-            onChange={(e) => handleFilterChange('subject', e.target.value)}
-            placeholder="e.g., Math, Science, History"
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {loadingFilters ? (
+        <div className="text-center py-4">
+          <div className="text-slate-300">Loading filter options...</div>
         </div>
+      ) : (
+        <>
+          {/* Filter Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {/* Exam Filter */}
+            <div>
+              <label htmlFor="exam" className="block text-sm font-medium text-slate-300 mb-2">
+                Exam
+              </label>
+              <select
+                id="exam"
+                value={filters.exam}
+                onChange={(e) => handleFilterChange('exam', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Exams</option>
+                {filterOptions.exam.map(exam => (
+                  <option key={exam} value={exam}>{exam}</option>
+                ))}
+              </select>
+            </div>
 
-        <div>
-          <label htmlFor="difficulty" className="block text-sm font-medium text-slate-300 mb-2">
-            Difficulty
-          </label>
-          <select
-            id="difficulty"
-            value={filters.difficulty}
-            onChange={(e) => handleFilterChange('difficulty', e.target.value)}
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Any Difficulty</option>
-            <option value="easy">Easy</option>
-            <option value="medium">Medium</option>
-            <option value="hard">Hard</option>
-          </select>
-        </div>
+            {/* Subject Filter */}
+            <div>
+              <label htmlFor="subject" className="block text-sm font-medium text-slate-300 mb-2">
+                Subject
+              </label>
+              <select
+                id="subject"
+                value={filters.subject}
+                onChange={(e) => handleFilterChange('subject', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Subjects</option>
+                {filterOptions.subject.map(subject => (
+                  <option key={subject} value={subject}>{subject}</option>
+                ))}
+              </select>
+            </div>
 
-        <div>
-          <label htmlFor="limit" className="block text-sm font-medium text-slate-300 mb-2">
-            Number of Questions
-          </label>
-          <input
-            type="number"
-            id="limit"
-            value={filters.limit}
-            onChange={(e) => handleFilterChange('limit', parseInt(e.target.value) || 10)}
-            min="1"
-            max="50"
-            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
+            {/* Unit Filter */}
+            <div>
+              <label htmlFor="unit" className="block text-sm font-medium text-slate-300 mb-2">
+                Unit
+              </label>
+              <select
+                id="unit"
+                value={filters.unit}
+                onChange={(e) => handleFilterChange('unit', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Units</option>
+                {filterOptions.unit.map(unit => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))}
+              </select>
+            </div>
 
-      <button
-        onClick={startQuiz}
-        disabled={loading}
-        className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors"
-      >
-        {loading ? 'Loading...' : 'Start Quiz'}
-      </button>
+            {/* Topic Filter */}
+            <div>
+              <label htmlFor="topic" className="block text-sm font-medium text-slate-300 mb-2">
+                Topic
+              </label>
+              <select
+                id="topic"
+                value={filters.topic}
+                onChange={(e) => handleFilterChange('topic', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Topics</option>
+                {filterOptions.topic.map(topic => (
+                  <option key={topic} value={topic}>{topic}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sub-topic Filter */}
+            <div>
+              <label htmlFor="subtopic" className="block text-sm font-medium text-slate-300 mb-2">
+                Sub-topic
+              </label>
+              <select
+                id="subtopic"
+                value={filters.subtopic}
+                onChange={(e) => handleFilterChange('subtopic', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Sub-topics</option>
+                {filterOptions.subtopic.map(subtopic => (
+                  <option key={subtopic} value={subtopic}>{subtopic}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Difficulty Filter */}
+            <div>
+              <label htmlFor="difficulty" className="block text-sm font-medium text-slate-300 mb-2">
+                Difficulty
+              </label>
+              <select
+                id="difficulty"
+                value={filters.difficulty}
+                onChange={(e) => handleFilterChange('difficulty', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Difficulties</option>
+                {filterOptions.difficulty.map(difficulty => (
+                  <option key={difficulty} value={difficulty}>{difficulty}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Number of Questions */}
+          <div className="mb-6">
+            <label htmlFor="limit" className="block text-sm font-medium text-slate-300 mb-2">
+              Number of Questions
+            </label>
+            <input
+              type="number"
+              id="limit"
+              value={filters.limit}
+              onChange={(e) => handleFilterChange('limit', parseInt(e.target.value) || 10)}
+              min="1"
+              max="100"
+              className="w-full md:w-48 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Start Quiz Button */}
+          <div className="flex justify-center">
+            <button
+              onClick={startQuiz}
+              disabled={loading || loadingFilters}
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors text-lg"
+            >
+              {loading ? 'Loading Quiz...' : 'Start Quiz'}
+            </button>
+          </div>
+
+          {/* Active Filters Display */}
+          {(filters.exam || filters.subject || filters.unit || filters.topic || filters.subtopic || filters.difficulty) && (
+            <div className="mt-4 p-3 bg-slate-700 rounded-md">
+              <div className="text-sm text-slate-300 mb-2">Active Filters:</div>
+              <div className="flex flex-wrap gap-2">
+                {filters.exam && (
+                  <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded">
+                    Exam: {filters.exam}
+                  </span>
+                )}
+                {filters.subject && (
+                  <span className="px-2 py-1 bg-green-600 text-white text-xs rounded">
+                    Subject: {filters.subject}
+                  </span>
+                )}
+                {filters.unit && (
+                  <span className="px-2 py-1 bg-purple-600 text-white text-xs rounded">
+                    Unit: {filters.unit}
+                  </span>
+                )}
+                {filters.topic && (
+                  <span className="px-2 py-1 bg-yellow-600 text-white text-xs rounded">
+                    Topic: {filters.topic}
+                  </span>
+                )}
+                {filters.subtopic && (
+                  <span className="px-2 py-1 bg-pink-600 text-white text-xs rounded">
+                    Sub-topic: {filters.subtopic}
+                  </span>
+                )}
+                {filters.difficulty && (
+                  <span className="px-2 py-1 bg-red-600 text-white text-xs rounded">
+                    Difficulty: {filters.difficulty}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 

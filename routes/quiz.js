@@ -5,6 +5,117 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const pool = getPool();
 
+// GET /api/quiz/start
+// Enhanced endpoint with filter support and filters response
+// Query: exam, subject, unit, topic, subtopic, difficulty, limit (opt, default 10)
+router.get('/start', async (req, res) => {
+  try {
+    const { exam, subject, unit, topic, subtopic, difficulty } = req.query || {};
+    let { limit } = req.query || {};
+    let lim = parseInt(limit, 10);
+    if (!Number.isFinite(lim)) lim = 10;
+    lim = Math.max(1, Math.min(lim, 100)); // clamp 1..100
+
+    // Build filters for quiz questions
+    const filters = [];
+    const values = [];
+    if (exam) { filters.push('q.`exam` = ?'); values.push(exam); }
+    if (subject) { filters.push('q.`subject` = ?'); values.push(subject); }
+    if (unit) { filters.push('q.`unit` = ?'); values.push(unit); }
+    if (topic) { filters.push('q.`topic` = ?'); values.push(topic); }
+    if (subtopic) { filters.push('q.`subtopic` = ?'); values.push(subtopic); }
+    if (difficulty) { filters.push('q.`difficulty` = ?'); values.push(difficulty); }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+    // 1) Pick random questions with optional filters
+    const [qRows] = await pool.query(
+      `SELECT q.id, q.\`text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`, 
+              q.\`exam\`, q.\`unit\`, q.\`topic\`, q.\`subtopic\`
+       FROM \`questions\` q
+       ${where}
+       ORDER BY RAND()
+       LIMIT ?`,
+      [...values, lim]
+    );
+
+    if (!qRows || qRows.length === 0) {
+      // Still fetch filters even if no questions match
+      const [examRows] = await pool.query("SELECT DISTINCT `exam` FROM `questions` WHERE `exam` IS NOT NULL AND `exam` != '' ORDER BY `exam`");
+      const [subjectRows] = await pool.query("SELECT DISTINCT `subject` FROM `questions` WHERE `subject` IS NOT NULL AND `subject` != '' ORDER BY `subject`");
+      const [unitRows] = await pool.query("SELECT DISTINCT `unit` FROM `questions` WHERE `unit` IS NOT NULL AND `unit` != '' ORDER BY `unit`");
+      const [topicRows] = await pool.query("SELECT DISTINCT `topic` FROM `questions` WHERE `topic` IS NOT NULL AND `topic` != '' ORDER BY `topic`");
+      const [subtopicRows] = await pool.query("SELECT DISTINCT `subtopic` FROM `questions` WHERE `subtopic` IS NOT NULL AND `subtopic` != '' ORDER BY `subtopic`");
+      const [difficultyRows] = await pool.query("SELECT DISTINCT `difficulty` FROM `questions` WHERE `difficulty` IS NOT NULL AND `difficulty` != '' ORDER BY `difficulty`");
+
+      return res.json({
+        questions: [],
+        filters: {
+          exam: examRows.map(row => row.exam),
+          subject: subjectRows.map(row => row.subject),
+          unit: unitRows.map(row => row.unit),
+          topic: topicRows.map(row => row.topic),
+          subtopic: subtopicRows.map(row => row.subtopic),
+          difficulty: difficultyRows.map(row => row.difficulty)
+        }
+      });
+    }
+
+    const ids = qRows.map(r => r.id);
+    // 2) Fetch options for these questions (exclude is_correct for quiz)
+    const [oRows] = await pool.query(
+      `SELECT o.id, o.\`question_id\`, o.\`label\`, o.\`option_text\`
+       FROM \`options\` o
+       WHERE o.\`question_id\` IN (${ids.map(() => '?').join(',')})
+       ORDER BY o.id`,
+      ids
+    );
+
+    const optByQ = new Map();
+    for (const r of oRows) {
+      if (!optByQ.has(r.question_id)) optByQ.set(r.question_id, []);
+      optByQ.get(r.question_id).push({ id: r.id, label: r.label, option_text: r.option_text });
+    }
+
+    // 3) Fetch all unique filter values (not limited by current filters)
+    const [examRows] = await pool.query("SELECT DISTINCT `exam` FROM `questions` WHERE `exam` IS NOT NULL AND `exam` != '' ORDER BY `exam`");
+    const [subjectRows] = await pool.query("SELECT DISTINCT `subject` FROM `questions` WHERE `subject` IS NOT NULL AND `subject` != '' ORDER BY `subject`");
+    const [unitRows] = await pool.query("SELECT DISTINCT `unit` FROM `questions` WHERE `unit` IS NOT NULL AND `unit` != '' ORDER BY `unit`");
+    const [topicRows] = await pool.query("SELECT DISTINCT `topic` FROM `questions` WHERE `topic` IS NOT NULL AND `topic` != '' ORDER BY `topic`");
+    const [subtopicRows] = await pool.query("SELECT DISTINCT `subtopic` FROM `questions` WHERE `subtopic` IS NOT NULL AND `subtopic` != '' ORDER BY `subtopic`");
+    const [difficultyRows] = await pool.query("SELECT DISTINCT `difficulty` FROM `questions` WHERE `difficulty` IS NOT NULL AND `difficulty` != '' ORDER BY `difficulty`");
+
+    // 4) Build quiz questions response
+    const questions = qRows.map(q => ({
+      id: q.id,
+      text: q.text,
+      subject: q.subject,
+      difficulty: q.difficulty,
+      type: q.type,
+      exam: q.exam,
+      unit: q.unit,
+      topic: q.topic,
+      subtopic: q.subtopic,
+      options: optByQ.get(q.id) || []
+    }));
+
+    // 5) Return both questions and filters
+    return res.json({
+      questions,
+      filters: {
+        exam: examRows.map(row => row.exam),
+        subject: subjectRows.map(row => row.subject),
+        unit: unitRows.map(row => row.unit),
+        topic: topicRows.map(row => row.topic),
+        subtopic: subtopicRows.map(row => row.subtopic),
+        difficulty: difficultyRows.map(row => row.difficulty)
+      }
+    });
+  } catch (err) {
+    console.error('Quiz start error:', err);
+    return res.status(500).json({ error: 'Failed to start quiz' });
+  }
+});
+
 // GET /api/quiz
 // Query: subject (opt), difficulty (opt), limit (opt, default 10)
 router.get('/', async (req, res) => {
