@@ -745,6 +745,16 @@ export default function QuizPage() {
       {/* Debug Info */}
       <div className="bg-slate-700 p-3 mb-4 rounded text-sm text-slate-300">
         Debug: quizStarted={quizStarted.toString()}, questionsLength={questions.length}, quizResult={!!quizResult}
+        <br />
+        Filters Available: Exam={filterOptions.exam.length}, Subject={filterOptions.subject.length}, 
+        Unit={filterOptions.unit.length}, Topic={filterOptions.topic.length}, 
+        Subtopic={filterOptions.subtopic.length}, Difficulty={filterOptions.difficulty.length}
+        {(filterOptions.exam.length === 0 && filterOptions.unit.length === 0 && 
+          filterOptions.topic.length === 0 && filterOptions.subtopic.length === 0) && (
+          <div className="text-amber-400 mt-1">
+            ⚠️ Limited filter options - production database may need enhanced question data
+          </div>
+        )}
       </div>
       
       {showAuthMessage && renderAuthMessage()}
