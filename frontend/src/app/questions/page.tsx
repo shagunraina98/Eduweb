@@ -17,7 +17,21 @@ type Question = {
   subject?: string | null;
   difficulty?: string | null;
   type?: string | null;
+  exam?: string | null;
+  unit?: string | null;
+  topic?: string | null;
+  subtopic?: string | null;
   options: Option[];
+};
+
+type FilterOptions = {
+  exams: string[];
+  subjects: string[];
+  units: string[];
+  topics: string[];
+  subtopics: string[];
+  difficulties: string[];
+  types?: string[]; // Add types to the filter options
 };
 
 export default function QuestionsPage() {
@@ -25,32 +39,62 @@ export default function QuestionsPage() {
   const { token } = useAuth();
 
   const [questions, setQuestions] = React.useState<Question[]>([]);
+  const [filterOptions, setFilterOptions] = React.useState<FilterOptions>({
+    exams: [],
+    subjects: [],
+    units: [],
+    topics: [],
+    subtopics: [],
+    difficulties: [],
+    types: []
+  });
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const [subject, setSubject] = React.useState('');
   const [difficulty, setDifficulty] = React.useState('');
   const [qtype, setQtype] = React.useState('');
+  const [exam, setExam] = React.useState('');
+  const [unit, setUnit] = React.useState('');
+  const [topic, setTopic] = React.useState('');
+  const [subtopic, setSubtopic] = React.useState('');
 
-  // Derived dropdown values from loaded questions
-  const subjects = React.useMemo(() => {
-    const s = new Set<string>();
-    questions.forEach(q => { if (q.subject) s.add(String(q.subject)); });
-    return Array.from(s).sort();
-  }, [questions]);
-
-  const types = React.useMemo(() => {
-    const t = new Set<string>();
-    questions.forEach(q => { if (q.type) t.add(String(q.type)); });
-    return Array.from(t).sort();
-  }, [questions]);
-
+  // Remove the derived dropdown values - we'll use API data instead
   React.useEffect(() => {
     if (!token) {
       router.replace('/login');
       return;
     }
   }, [token, router]);
+
+  // Fetch filter options from the new /api/filters endpoint
+  const fetchFilterOptions = React.useCallback(async () => {
+    try {
+      // Use the new /api/filters endpoint without authentication since it's public data
+      const res = await api.get<FilterOptions>('/api/filters');
+      setFilterOptions({
+        exams: res.data?.exams || [],
+        subjects: res.data?.subjects || [],
+        units: res.data?.units || [],
+        topics: res.data?.topics || [],
+        subtopics: res.data?.subtopics || [],
+        difficulties: res.data?.difficulties || [],
+        types: res.data?.types || ['multiple-choice', 'true-false', 'short-answer'] // Default types if not in API
+      });
+    } catch (err: any) {
+      console.error('Failed to fetch filter options:', err);
+      // Set some default options if API fails
+      setFilterOptions({
+        exams: [],
+        subjects: [],
+        units: [],
+        topics: [],
+        subtopics: [],
+        difficulties: ['Easy', 'Medium', 'Hard'],
+        types: ['multiple-choice', 'true-false', 'short-answer']
+      });
+    }
+  }, []); // Remove token dependency since this endpoint is public
 
   const fetchQuestions = React.useCallback(async () => {
     if (!token) return;
@@ -61,6 +105,10 @@ export default function QuestionsPage() {
       if (subject) params.subject = subject;
       if (difficulty) params.difficulty = difficulty;
       if (qtype) params.type = qtype;
+      if (exam) params.exam = exam;
+      if (unit) params.unit = unit;
+      if (topic) params.topic = topic;
+      if (subtopic) params.subtopic = subtopic;
       const res = await api.get<Question[]>('/api/questions', {
         params,
         headers: { Authorization: `Bearer ${token}` },
@@ -73,7 +121,11 @@ export default function QuestionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, subject, difficulty, qtype]);
+  }, [token, subject, difficulty, qtype, exam, unit, topic, subtopic]);
+
+  React.useEffect(() => {
+    fetchFilterOptions();
+  }, [fetchFilterOptions]);
 
   React.useEffect(() => {
     fetchQuestions();
@@ -83,6 +135,10 @@ export default function QuestionsPage() {
     setSubject('');
     setDifficulty('');
     setQtype('');
+    setExam('');
+    setUnit('');
+    setTopic('');
+    setSubtopic('');
   }
 
   return (
@@ -90,7 +146,20 @@ export default function QuestionsPage() {
       <h1 className="text-2xl font-semibold mb-4">Questions</h1>
 
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Exam</label>
+          <select
+            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            value={exam}
+            onChange={(e) => setExam(e.target.value)}
+          >
+            <option value="">All</option>
+            {filterOptions.exams.map((e: string) => (
+              <option key={e} value={e}>{e}</option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="block text-sm font-medium mb-1">Subject</label>
           <select
@@ -99,8 +168,47 @@ export default function QuestionsPage() {
             onChange={(e) => setSubject(e.target.value)}
           >
             <option value="">All</option>
-            {subjects.map(s => (
+            {filterOptions.subjects.map((s: string) => (
               <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Unit</label>
+          <select
+            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          >
+            <option value="">All</option>
+            {filterOptions.units.map((u: string) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Topic</label>
+          <select
+            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+          >
+            <option value="">All</option>
+            {filterOptions.topics.map((t: string) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Subtopic</label>
+          <select
+            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            value={subtopic}
+            onChange={(e) => setSubtopic(e.target.value)}
+          >
+            <option value="">All</option>
+            {filterOptions.subtopics.map((st: string) => (
+              <option key={st} value={st}>{st}</option>
             ))}
           </select>
         </div>
@@ -112,9 +220,9 @@ export default function QuestionsPage() {
             onChange={(e) => setDifficulty(e.target.value)}
           >
             <option value="">All</option>
-            <option value="easy">Easy</option>
-            <option value="medium">Medium</option>
-            <option value="hard">Hard</option>
+            {filterOptions.difficulties.map((d: string) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -125,25 +233,26 @@ export default function QuestionsPage() {
             onChange={(e) => setQtype(e.target.value)}
           >
             <option value="">All</option>
-            {types.map(t => (
+            {filterOptions.types?.map((t: string) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
-        <div className="flex items-end gap-2">
-          <button
-            onClick={fetchQuestions}
-            className="flex-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium"
-          >
-            Apply
-          </button>
-          <button
-            onClick={() => { clearFilters(); }}
-            className="rounded-md border border-neutral-300 dark:border-neutral-700 px-4 py-2"
-          >
-            Clear
-          </button>
-        </div>
+      </div>
+      
+      <div className="mb-6 flex gap-2">
+        <button
+          onClick={fetchQuestions}
+          className="rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium"
+        >
+          Apply Filters
+        </button>
+        <button
+          onClick={() => { clearFilters(); }}
+          className="rounded-md border border-neutral-300 dark:border-neutral-700 px-4 py-2"
+        >
+          Clear All
+        </button>
       </div>
 
       {error && (
@@ -162,13 +271,20 @@ export default function QuestionsPage() {
             <div key={q.id} className="bg-gray-800 rounded-lg shadow p-4">
               <div className="mb-2">
                 <div className="text-sm text-neutral-400">
-                  {(q.subject || q.difficulty || q.type) && (
-                    <span>
-                      {[q.subject, q.difficulty, q.type].filter(Boolean).join(' • ')}
-                    </span>
+                  {(q.exam || q.subject || q.unit || q.topic || q.subtopic || q.difficulty || q.type) && (
+                    <div className="space-y-1">
+                      {q.exam && <div><span className="font-medium">Exam:</span> {q.exam}</div>}
+                      {q.subject && <div><span className="font-medium">Subject:</span> {q.subject}</div>}
+                      {q.unit && <div><span className="font-medium">Unit:</span> {q.unit}</div>}
+                      {q.topic && <div><span className="font-medium">Topic:</span> {q.topic}</div>}
+                      {q.subtopic && <div><span className="font-medium">Subtopic:</span> {q.subtopic}</div>}
+                      <div>
+                        {[q.difficulty, q.type].filter(Boolean).join(' • ')}
+                      </div>
+                    </div>
                   )}
                 </div>
-                <h2 className="text-lg font-semibold text-white mt-1">{q.text}</h2>
+                <h2 className="text-lg font-semibold text-white mt-2">{q.text}</h2>
               </div>
               <div className="mt-3">
                 {q.options?.map((opt) => (
