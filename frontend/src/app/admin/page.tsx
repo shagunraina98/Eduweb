@@ -11,6 +11,10 @@ type QuestionItem = {
   subject?: string | null;
   difficulty?: string | null;
   type?: string | null;
+  exam?: string | null;
+  unit?: string | null;
+  topic?: string | null;
+  subtopic?: string | null;
   options: Array<{ id: number; label: string; option_text: string; is_correct: boolean }>;
 };
 
@@ -28,6 +32,10 @@ export default function AdminPage() {
   const [subject, setSubject] = React.useState('');
   const [difficulty, setDifficulty] = React.useState('easy');
   const [qtype, setQtype] = React.useState('mcq');
+  const [exam, setExam] = React.useState('');
+  const [unit, setUnit] = React.useState('');
+  const [topic, setTopic] = React.useState('');
+  const [subtopic, setSubtopic] = React.useState('');
   const [options, setOptions] = React.useState<OptionForm[]>([
     { label: 'A', option_text: '', is_correct: false },
     { label: 'B', option_text: '', is_correct: false },
@@ -66,6 +74,10 @@ export default function AdminPage() {
     setSubject('');
     setDifficulty('easy');
     setQtype('mcq');
+    setExam('');
+    setUnit('');
+    setTopic('');
+    setSubtopic('');
     setOptions([
       { label: 'A', option_text: '', is_correct: false },
       { label: 'B', option_text: '', is_correct: false },
@@ -80,6 +92,10 @@ export default function AdminPage() {
     setSubject((q.subject as string) || '');
     setDifficulty((q.difficulty as string) || 'easy');
     setQtype((q.type as string) || 'mcq');
+    setExam((q.exam as string) || '');
+    setUnit((q.unit as string) || '');
+    setTopic((q.topic as string) || '');
+    setSubtopic((q.subtopic as string) || '');
     setOptions(
       (q.options || []).map(o => ({ id: o.id, label: o.label, option_text: o.option_text, is_correct: !!o.is_correct }))
     );
@@ -98,6 +114,10 @@ export default function AdminPage() {
       const normalizedSubject = subject.trim();
       const normalizedDifficulty = String(difficulty).trim();
       const normalizedType = String(qtype).trim();
+      const normalizedExam = exam.trim();
+      const normalizedUnit = unit.trim();
+      const normalizedTopic = topic.trim();
+      const normalizedSubtopic = subtopic.trim();
 
       // Ensure options array matches backend requirements
       const normalizedOptions = options
@@ -124,6 +144,10 @@ export default function AdminPage() {
         subject: normalizedSubject,
         difficulty: normalizedDifficulty,
         type: normalizedType,
+        exam: normalizedExam,
+        unit: normalizedUnit,
+        topic: normalizedTopic,
+        subtopic: normalizedSubtopic,
         options: normalizedOptions,
       };
 
@@ -136,6 +160,10 @@ export default function AdminPage() {
           subject: payload.subject,
           difficulty: payload.difficulty,
           type: payload.type,
+          exam: payload.exam,
+          unit: payload.unit,
+          topic: payload.topic,
+          subtopic: payload.subtopic,
           options: options.map(o => ({
             id: o.id, // Include existing ID if available
             label: o.label,
@@ -241,6 +269,45 @@ export default function AdminPage() {
                 onChange={(e) => setQtype(e.target.value)}
                 placeholder="e.g. mcq"
                 required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Exam</label>
+              <input
+                className="w-full rounded-md border border-neutral-300 bg-white text-gray-900 px-3 py-2"
+                value={exam}
+                onChange={(e) => setExam(e.target.value)}
+                placeholder="e.g. JEE, NEET, SAT"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Unit</label>
+              <input
+                className="w-full rounded-md border border-neutral-300 bg-white text-gray-900 px-3 py-2"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                placeholder="e.g. Unit 1, Chapter 5"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Topic</label>
+              <input
+                className="w-full rounded-md border border-neutral-300 bg-white text-gray-900 px-3 py-2"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="e.g. Algebra, Physics"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Sub-topic</label>
+              <input
+                className="w-full rounded-md border border-neutral-300 bg-white text-gray-900 px-3 py-2"
+                value={subtopic}
+                onChange={(e) => setSubtopic(e.target.value)}
+                placeholder="e.g. Linear Equations"
               />
             </div>
           </div>

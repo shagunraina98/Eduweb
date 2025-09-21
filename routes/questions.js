@@ -7,7 +7,7 @@ const pool = getPool();
 
 // POST /api/questions (admin only)
 router.post('/', authenticateToken, requireAdmin, async (req, res) => {
-  const { text, subject, difficulty, type, options } = req.body || {};
+  const { text, subject, difficulty, type, options, exam, unit, topic, subtopic } = req.body || {};
   if (!text || !subject || !difficulty || !type || !Array.isArray(options) || options.length === 0) {
     return res.status(400).json({ error: 'text, subject, difficulty, type, and options[] are required' });
   }
@@ -24,8 +24,8 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     await conn.beginTransaction();
 
     const [result] = await conn.query(
-      'INSERT INTO `questions` (`text`, `subject`, `difficulty`, `type`) VALUES (?, ?, ?, ?)',
-      [text, subject, difficulty, type]
+      'INSERT INTO `questions` (`text`, `subject`, `difficulty`, `type`, `exam`, `unit`, `topic`, `subtopic`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [text, subject, difficulty, type, exam || null, unit || null, topic || null, subtopic || null]
     );
     const questionId = result.insertId;
 
@@ -74,16 +74,21 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 // GET /api/questions
 router.get('/', async (req, res) => {
   try {
-    const { subject, difficulty, type } = req.query || {};
+    const { subject, difficulty, type, exam, unit, topic, subtopic } = req.query || {};
     const filters = [];
     const values = [];
-  if (subject) { filters.push('q.`subject` = ?'); values.push(subject); }
-  if (difficulty) { filters.push('q.`difficulty` = ?'); values.push(difficulty); }
-  if (type) { filters.push('q.`type` = ?'); values.push(type); }
+    if (subject) { filters.push('q.`subject` = ?'); values.push(subject); }
+    if (difficulty) { filters.push('q.`difficulty` = ?'); values.push(difficulty); }
+    if (type) { filters.push('q.`type` = ?'); values.push(type); }
+    if (exam) { filters.push('q.`exam` = ?'); values.push(exam); }
+    if (unit) { filters.push('q.`unit` = ?'); values.push(unit); }
+    if (topic) { filters.push('q.`topic` = ?'); values.push(topic); }
+    if (subtopic) { filters.push('q.`subtopic` = ?'); values.push(subtopic); }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const [rows] = await pool.query(
-      `SELECT q.id AS question_id, q.\`text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`,
+      `SELECT q.id AS question_id, q.\`text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`, 
+        q.\`exam\`, q.\`unit\`, q.\`topic\`, q.\`subtopic\`,
         o.id AS option_id, o.\`label\`, o.\`option_text\`, o.\`is_correct\`
    FROM \`questions\` q
    LEFT JOIN \`options\` o ON o.\`question_id\` = q.id
@@ -101,6 +106,10 @@ router.get('/', async (req, res) => {
           subject: r.subject,
           difficulty: r.difficulty,
           type: r.type,
+          exam: r.exam,
+          unit: r.unit,
+          topic: r.topic,
+          subtopic: r.subtopic,
           options: []
         });
       }
@@ -123,13 +132,13 @@ router.get('/', async (req, res) => {
 // PUT /api/questions/:id (admin only)
 router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { text, subject, difficulty, type, options } = req.body || {};
+  const { text, subject, difficulty, type, options, exam, unit, topic, subtopic } = req.body || {};
   
   console.log('PUT /api/questions/:id called with ID:', id);
   console.log('Request body options:', JSON.stringify(options, null, 2));
   
-  if (!text && !subject && !difficulty && !type && !options) {
-    return res.status(400).json({ error: 'At least one field (text, subject, difficulty, type, options) must be provided' });
+  if (!text && !subject && !difficulty && !type && !options && !exam && !unit && !topic && !subtopic) {
+    return res.status(400).json({ error: 'At least one field (text, subject, difficulty, type, options, exam, unit, topic, subtopic) must be provided' });
   }
 
   // Validate options if provided
@@ -153,13 +162,17 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     // Update question fields if provided
-    if (text || subject || difficulty || type) {
+    if (text || subject || difficulty || type || exam !== undefined || unit !== undefined || topic !== undefined || subtopic !== undefined) {
       const fields = [];
       const values = [];
       if (text) { fields.push('`text` = ?'); values.push(text); }
       if (subject) { fields.push('`subject` = ?'); values.push(subject); }
       if (difficulty) { fields.push('`difficulty` = ?'); values.push(difficulty); }
       if (type) { fields.push('`type` = ?'); values.push(type); }
+      if (exam !== undefined) { fields.push('`exam` = ?'); values.push(exam || null); }
+      if (unit !== undefined) { fields.push('`unit` = ?'); values.push(unit || null); }
+      if (topic !== undefined) { fields.push('`topic` = ?'); values.push(topic || null); }
+      if (subtopic !== undefined) { fields.push('`subtopic` = ?'); values.push(subtopic || null); }
       values.push(id);
 
       const [result] = await conn.query(`UPDATE \`questions\` SET ${fields.join(', ')} WHERE id = ?`, values);
