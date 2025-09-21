@@ -2,7 +2,7 @@ const axios = require('axios');
 
 async function testLocalAPI() {
   // Test against the Aiven database with fixed local routes
-  const baseURL = 'https://eduweb-jade-phi.vercel.app/'; // Your Render backend
+  const baseURL = 'https://eduweb-eo8i.onrender.com'; // Your Render backend
   
   try {
     console.log('🧪 Testing the fixes we made locally...');

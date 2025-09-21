@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 async function testFixedAPI() {
-  const baseURL = 'https://eduweb-jade-phi.vercel.app/';
+  const baseURL = 'https://eduweb-eo8i.onrender.com';
   
   try {
     console.log('🧪 Testing fixed database schema...');
