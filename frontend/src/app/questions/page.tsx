@@ -105,19 +105,58 @@ export default function QuestionsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       
-      // Update questions from the response
-      setQuestions(res.data?.questions || []);
+      console.log('Questions API Response:', res.data);
       
-      // Update filter options from the response (always complete set)
-      setFilterOptions({
-        exam: res.data?.filters?.exam || [],
-        subject: res.data?.filters?.subject || [],
-        unit: res.data?.filters?.unit || [],
-        topic: res.data?.filters?.topic || [],
-        subtopic: res.data?.filters?.subtopic || [],
-        difficulty: res.data?.filters?.difficulty || [],
-        type: res.data?.filters?.type || []
-      });
+      // Handle both old and new API structures
+      let questionsData: Question[] = [];
+      let filtersData: FilterOptions = {
+        exam: [],
+        subject: [],
+        unit: [],
+        topic: [],
+        subtopic: [],
+        difficulty: [],
+        type: []
+      };
+      
+      if (Array.isArray(res.data)) {
+        // Old API structure: returns array directly
+        questionsData = res.data;
+        console.log('Using old API structure (array)');
+        
+        // Extract unique filter values from questions
+        const extractUniqueValues = (field: keyof Question) => {
+          return [...new Set(questionsData
+            .map(q => q[field])
+            .filter(value => value && value !== null && value !== '')
+            .map(value => String(value))
+          )].sort();
+        };
+        
+        filtersData = {
+          exam: extractUniqueValues('exam'),
+          subject: extractUniqueValues('subject'),
+          unit: extractUniqueValues('unit'),
+          topic: extractUniqueValues('topic'),
+          subtopic: extractUniqueValues('subtopic'),
+          difficulty: extractUniqueValues('difficulty'),
+          type: extractUniqueValues('type')
+        };
+      } else if (res.data && typeof res.data === 'object') {
+        // New API structure: returns {questions: [...], filters: {...}}
+        questionsData = res.data.questions || [];
+        filtersData = res.data.filters || filtersData;
+        console.log('Using new API structure (object)');
+      }
+      
+      console.log('Processed questions:', questionsData.length);
+      console.log('Processed filters:', filtersData);
+      
+      // Update questions from the response
+      setQuestions(questionsData);
+      
+      // Update filter options from the response
+      setFilterOptions(filtersData);
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Failed to fetch questions and filters';
       setError(msg);

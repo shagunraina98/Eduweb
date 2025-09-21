@@ -109,11 +109,55 @@ export default function QuizPage() {
     try {
       setLoadingFilters(true);
       console.log('Loading filter options...');
-      const response = await api.get('/api/quiz/start');
-      console.log('Filter options response:', response.data);
       
-      if (response.data && response.data.filters) {
-        const safeFilterOptions = {
+      // Try new endpoint first, fallback to old endpoint
+      let response;
+      try {
+        response = await api.get('/api/quiz/start');
+        console.log('New filter options response:', response.data);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          console.log('New endpoint not found, trying old endpoint...');
+          response = await api.get('/api/quiz?limit=50'); // Get more questions for better filter extraction
+          console.log('Old filter options response (sample):', Array.isArray(response.data) ? `${response.data.length} questions` : response.data);
+        } else {
+          throw error;
+        }
+      }
+      
+      let filtersData: FilterOptions = {
+        exam: [],
+        subject: [],
+        unit: [],
+        topic: [],
+        subtopic: [],
+        difficulty: []
+      };
+      
+      if (Array.isArray(response.data)) {
+        // Old API structure: extract filters from questions array
+        const questions: Question[] = response.data;
+        
+        const extractUniqueValues = (field: keyof Question) => {
+          return [...new Set(questions
+            .map(q => q[field])
+            .filter(value => value && value !== null && value !== '')
+            .map(value => String(value))
+          )].sort();
+        };
+        
+        filtersData = {
+          exam: extractUniqueValues('exam'),
+          subject: extractUniqueValues('subject'),
+          unit: extractUniqueValues('unit'),
+          topic: extractUniqueValues('topic'),
+          subtopic: extractUniqueValues('subtopic'),
+          difficulty: extractUniqueValues('difficulty')
+        };
+        console.log('Extracted filters from old API:', filtersData);
+      } else if (response.data && response.data.filters) {
+        // New API structure: use provided filters
+        filtersData = {
           exam: Array.isArray(response.data.filters.exam) ? response.data.filters.exam : [],
           subject: Array.isArray(response.data.filters.subject) ? response.data.filters.subject : [],
           unit: Array.isArray(response.data.filters.unit) ? response.data.filters.unit : [],
@@ -121,8 +165,10 @@ export default function QuizPage() {
           subtopic: Array.isArray(response.data.filters.subtopic) ? response.data.filters.subtopic : [],
           difficulty: Array.isArray(response.data.filters.difficulty) ? response.data.filters.difficulty : []
         };
-        setFilterOptions(safeFilterOptions);
+        console.log('Using filters from new API:', filtersData);
       }
+      
+      setFilterOptions(filtersData);
     } catch (error: any) {
       console.error('Error loading filter options:', error);
       console.error('Error response:', error.response?.data);
@@ -152,23 +198,76 @@ export default function QuizPage() {
       params.append('limit', filters.limit.toString());
 
       console.log('Fetching quiz with params:', params.toString());
-      const response = await api.get(`/api/quiz/start?${params.toString()}`);
-      console.log('Quiz response:', response.data);
       
-      if (response.data && response.data.questions) {
-        const safeQuestions = Array.isArray(response.data.questions) ? response.data.questions : [];
-        setQuestions(safeQuestions);
-        
-        if (safeQuestions.length === 0) {
-          alert('No questions found with the selected filters. Please try different filter options.');
-          return;
+      // Try new endpoint first, fallback to old endpoint
+      let response;
+      try {
+        response = await api.get(`/api/quiz/start?${params.toString()}`);
+        console.log('New quiz API response:', response.data);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          console.log('New endpoint not found, trying old endpoint...');
+          response = await api.get(`/api/quiz?${params.toString()}`);
+          console.log('Old quiz API response:', response.data);
+        } else {
+          throw error;
         }
-      } else {
-        setQuestions([]);
+      }
+      
+      // Handle both old and new API structures
+      let questionsData: Question[] = [];
+      let filtersData: FilterOptions = {
+        exam: [],
+        subject: [],
+        unit: [],
+        topic: [],
+        subtopic: [],
+        difficulty: []
+      };
+      
+      if (Array.isArray(response.data)) {
+        // Old API structure: returns array directly
+        questionsData = response.data;
+        console.log('Using old quiz API structure (array)');
+        
+        // Extract unique filter values from questions for old API
+        const extractUniqueValues = (field: keyof Question) => {
+          return [...new Set(questionsData
+            .map(q => q[field])
+            .filter(value => value && value !== null && value !== '')
+            .map(value => String(value))
+          )].sort();
+        };
+        
+        filtersData = {
+          exam: extractUniqueValues('exam'),
+          subject: extractUniqueValues('subject'),
+          unit: extractUniqueValues('unit'),
+          topic: extractUniqueValues('topic'),
+          subtopic: extractUniqueValues('subtopic'),
+          difficulty: extractUniqueValues('difficulty')
+        };
+      } else if (response.data && response.data.questions) {
+        // New API structure: returns {questions: [...], filters: {...}}
+        questionsData = Array.isArray(response.data.questions) ? response.data.questions : [];
+        filtersData = response.data.filters || filtersData;
+        console.log('Using new quiz API structure (object)');
+      }
+      
+      console.log('Quiz questions processed:', questionsData.length);
+      setQuestions(questionsData);
+      
+      // Update filter options if we have them
+      if (Object.values(filtersData).some(arr => arr.length > 0)) {
+        setFilterOptions(filtersData);
+      }
+      
+      if (questionsData.length === 0) {
         alert('No questions found with the selected filters. Please try different filter options.');
         return;
       }
       
+      console.log('Setting quiz started to true');
       setQuizStarted(true);
       setSelections({});
       setQuizResult(null);
@@ -643,6 +742,11 @@ export default function QuizPage() {
     <main className="mx-auto max-w-4xl p-6">
       <h1 className="text-3xl font-bold text-white mb-6">Quiz</h1>
       
+      {/* Debug Info */}
+      <div className="bg-slate-700 p-3 mb-4 rounded text-sm text-slate-300">
+        Debug: quizStarted={quizStarted.toString()}, questionsLength={questions.length}, quizResult={!!quizResult}
+      </div>
+      
       {showAuthMessage && renderAuthMessage()}
       
       {quizResult ? (
@@ -663,7 +767,13 @@ export default function QuizPage() {
             </button>
           </div>
 
-          {questions.map((question, index) => renderQuestion(question, index))}
+          {questions.length > 0 ? (
+            questions.map((question, index) => renderQuestion(question, index))
+          ) : (
+            <div className="bg-slate-800 p-6 rounded-lg text-center">
+              <p className="text-slate-300">No questions to display. Questions array is empty.</p>
+            </div>
+          )}
 
           <div className="mt-6 flex justify-center">
             <button
