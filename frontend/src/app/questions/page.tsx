@@ -25,13 +25,18 @@ type Question = {
 };
 
 type FilterOptions = {
-  exams: string[];
-  subjects: string[];
-  units: string[];
-  topics: string[];
-  subtopics: string[];
-  difficulties: string[];
-  types?: string[]; // Add types to the filter options
+  exam: string[];
+  subject: string[];
+  unit: string[];
+  topic: string[];
+  subtopic: string[];
+  difficulty: string[];
+  type: string[];
+};
+
+type QuestionsResponse = {
+  questions: Question[];
+  filters: FilterOptions;
 };
 
 export default function QuestionsPage() {
@@ -40,16 +45,29 @@ export default function QuestionsPage() {
 
   const [questions, setQuestions] = React.useState<Question[]>([]);
   const [filterOptions, setFilterOptions] = React.useState<FilterOptions>({
-    exams: [],
-    subjects: [],
-    units: [],
-    topics: [],
-    subtopics: [],
-    difficulties: [],
-    types: []
+    exam: [],
+    subject: [],
+    unit: [],
+    topic: [],
+    subtopic: [],
+    difficulty: [],
+    type: []
   });
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Ensure questions is always an array
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  // Ensure filterOptions properties are always arrays
+  const safeFilterOptions = {
+    exam: Array.isArray(filterOptions.exam) ? filterOptions.exam : [],
+    subject: Array.isArray(filterOptions.subject) ? filterOptions.subject : [],
+    unit: Array.isArray(filterOptions.unit) ? filterOptions.unit : [],
+    topic: Array.isArray(filterOptions.topic) ? filterOptions.topic : [],
+    subtopic: Array.isArray(filterOptions.subtopic) ? filterOptions.subtopic : [],
+    difficulty: Array.isArray(filterOptions.difficulty) ? filterOptions.difficulty : [],
+    type: Array.isArray(filterOptions.type) ? filterOptions.type : [],
+  };
 
   const [subject, setSubject] = React.useState('');
   const [difficulty, setDifficulty] = React.useState('');
@@ -67,36 +85,8 @@ export default function QuestionsPage() {
     }
   }, [token, router]);
 
-  // Fetch filter options from the new /api/filters endpoint
-  const fetchFilterOptions = React.useCallback(async () => {
-    try {
-      // Use the new /api/filters endpoint without authentication since it's public data
-      const res = await api.get<FilterOptions>('/api/filters');
-      setFilterOptions({
-        exams: res.data?.exams || [],
-        subjects: res.data?.subjects || [],
-        units: res.data?.units || [],
-        topics: res.data?.topics || [],
-        subtopics: res.data?.subtopics || [],
-        difficulties: res.data?.difficulties || [],
-        types: res.data?.types || ['multiple-choice', 'true-false', 'short-answer'] // Default types if not in API
-      });
-    } catch (err: any) {
-      console.error('Failed to fetch filter options:', err);
-      // Set some default options if API fails
-      setFilterOptions({
-        exams: [],
-        subjects: [],
-        units: [],
-        topics: [],
-        subtopics: [],
-        difficulties: ['Easy', 'Medium', 'Hard'],
-        types: ['multiple-choice', 'true-false', 'short-answer']
-      });
-    }
-  }, []); // Remove token dependency since this endpoint is public
-
-  const fetchQuestions = React.useCallback(async () => {
+  // Fetch questions and filters from the enhanced /api/questions endpoint
+  const fetchQuestionsAndFilters = React.useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError(null);
@@ -109,27 +99,38 @@ export default function QuestionsPage() {
       if (unit) params.unit = unit;
       if (topic) params.topic = topic;
       if (subtopic) params.subtopic = subtopic;
-      const res = await api.get<Question[]>('/api/questions', {
+      
+      const res = await api.get<QuestionsResponse>('/api/questions', {
         params,
         headers: { Authorization: `Bearer ${token}` },
       });
-      setQuestions(res.data || []);
+      
+      // Update questions from the response
+      setQuestions(res.data?.questions || []);
+      
+      // Update filter options from the response (always complete set)
+      setFilterOptions({
+        exam: res.data?.filters?.exam || [],
+        subject: res.data?.filters?.subject || [],
+        unit: res.data?.filters?.unit || [],
+        topic: res.data?.filters?.topic || [],
+        subtopic: res.data?.filters?.subtopic || [],
+        difficulty: res.data?.filters?.difficulty || [],
+        type: res.data?.filters?.type || []
+      });
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Failed to fetch questions';
+      const msg = err?.response?.data?.error || 'Failed to fetch questions and filters';
       setError(msg);
-      setQuestions([]);
+      setQuestions([]); // Ensure questions is always an array
+      // Keep existing filter options on error
     } finally {
       setLoading(false);
     }
   }, [token, subject, difficulty, qtype, exam, unit, topic, subtopic]);
 
   React.useEffect(() => {
-    fetchFilterOptions();
-  }, [fetchFilterOptions]);
-
-  React.useEffect(() => {
-    fetchQuestions();
-  }, [fetchQuestions]);
+    fetchQuestionsAndFilters();
+  }, [fetchQuestionsAndFilters]);
 
   function clearFilters() {
     setSubject('');
@@ -155,7 +156,7 @@ export default function QuestionsPage() {
             onChange={(e) => setExam(e.target.value)}
           >
             <option value="">All</option>
-            {filterOptions.exams.map((e: string) => (
+            {Array.isArray(safeFilterOptions.exam) && safeFilterOptions.exam.map((e: string) => (
               <option key={e} value={e}>{e}</option>
             ))}
           </select>
@@ -168,7 +169,7 @@ export default function QuestionsPage() {
             onChange={(e) => setSubject(e.target.value)}
           >
             <option value="">All</option>
-            {filterOptions.subjects.map((s: string) => (
+            {Array.isArray(safeFilterOptions.subject) && safeFilterOptions.subject.map((s: string) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
@@ -181,7 +182,7 @@ export default function QuestionsPage() {
             onChange={(e) => setUnit(e.target.value)}
           >
             <option value="">All</option>
-            {filterOptions.units.map((u: string) => (
+            {Array.isArray(safeFilterOptions.unit) && safeFilterOptions.unit.map((u: string) => (
               <option key={u} value={u}>{u}</option>
             ))}
           </select>
@@ -194,20 +195,20 @@ export default function QuestionsPage() {
             onChange={(e) => setTopic(e.target.value)}
           >
             <option value="">All</option>
-            {filterOptions.topics.map((t: string) => (
+            {Array.isArray(safeFilterOptions.topic) && safeFilterOptions.topic.map((t: string) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Subtopic</label>
+          <label className="block text-sm font-medium mb-1">Sub-topic</label>
           <select
             className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
             value={subtopic}
             onChange={(e) => setSubtopic(e.target.value)}
           >
             <option value="">All</option>
-            {filterOptions.subtopics.map((st: string) => (
+            {Array.isArray(safeFilterOptions.subtopic) && safeFilterOptions.subtopic.map((st: string) => (
               <option key={st} value={st}>{st}</option>
             ))}
           </select>
@@ -220,7 +221,7 @@ export default function QuestionsPage() {
             onChange={(e) => setDifficulty(e.target.value)}
           >
             <option value="">All</option>
-            {filterOptions.difficulties.map((d: string) => (
+            {Array.isArray(safeFilterOptions.difficulty) && safeFilterOptions.difficulty.map((d: string) => (
               <option key={d} value={d}>{d}</option>
             ))}
           </select>
@@ -233,7 +234,7 @@ export default function QuestionsPage() {
             onChange={(e) => setQtype(e.target.value)}
           >
             <option value="">All</option>
-            {filterOptions.types?.map((t: string) => (
+            {Array.isArray(safeFilterOptions.type) && safeFilterOptions.type?.map((t: string) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
@@ -242,7 +243,7 @@ export default function QuestionsPage() {
       
       <div className="mb-6 flex gap-2">
         <button
-          onClick={fetchQuestions}
+          onClick={fetchQuestionsAndFilters}
           className="rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium"
         >
           Apply Filters
@@ -263,11 +264,11 @@ export default function QuestionsPage() {
 
       {loading ? (
         <div>Loading…</div>
-      ) : questions.length === 0 ? (
+      ) : !Array.isArray(safeQuestions) || safeQuestions.length === 0 ? (
         <div>No questions found.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {questions.map((q) => (
+          {safeQuestions.map((q) => (
             <div key={q.id} className="bg-gray-800 rounded-lg shadow p-4">
               <div className="mb-2">
                 <div className="text-sm text-neutral-400">
@@ -287,7 +288,7 @@ export default function QuestionsPage() {
                 <h2 className="text-lg font-semibold text-white mt-2">{q.text}</h2>
               </div>
               <div className="mt-3">
-                {q.options?.map((opt) => (
+                {Array.isArray(q.options) && q.options?.map((opt) => (
                   <div key={opt.id} className="mt-1 text-white text-sm">
                     <span className="font-medium mr-1">{opt.label}.</span>
                     {opt.option_text}
