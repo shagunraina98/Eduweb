@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 async function testRenderBackend() {
-  const backendUrl = 'https://eduweb-eo8i.onrender.com';
+  const backendUrl = 'https://eduweb-jade-phi.vercel.app/';
   
   try {
     console.log('🔄 Testing connection to Render backend...');

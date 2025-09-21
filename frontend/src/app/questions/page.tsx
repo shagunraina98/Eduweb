@@ -105,8 +105,6 @@ export default function QuestionsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       
-      console.log('Questions API Response:', res.data);
-      
       // Handle both old and new API structures
       let questionsData: Question[] = [];
       let filtersData: FilterOptions = {
@@ -122,7 +120,6 @@ export default function QuestionsPage() {
       if (Array.isArray(res.data)) {
         // Old API structure: returns array directly
         questionsData = res.data;
-        console.log('Using old API structure (array)');
         
         // Extract unique filter values from questions
         const extractUniqueValues = (field: keyof Question) => {
@@ -146,11 +143,7 @@ export default function QuestionsPage() {
         // New API structure: returns {questions: [...], filters: {...}}
         questionsData = res.data.questions || [];
         filtersData = res.data.filters || filtersData;
-        console.log('Using new API structure (object)');
       }
-      
-      console.log('Processed questions:', questionsData.length);
-      console.log('Processed filters:', filtersData);
       
       // Update questions from the response
       setQuestions(questionsData);
@@ -184,25 +177,6 @@ export default function QuestionsPage() {
   return (
     <div className="max-w-6xl mx-auto p-4">
       <h1 className="text-2xl font-semibold mb-4">Questions</h1>
-
-      {/* Production Debug Info */}
-      <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 text-sm">
-        <div className="font-medium text-blue-800 dark:text-blue-200 mb-1">Filter Options Available:</div>
-        <div className="text-blue-700 dark:text-blue-300 space-x-4">
-          <span>Exam: {safeFilterOptions.exam.length}</span>
-          <span>Subject: {safeFilterOptions.subject.length}</span>
-          <span>Unit: {safeFilterOptions.unit.length}</span>
-          <span>Topic: {safeFilterOptions.topic.length}</span>
-          <span>Subtopic: {safeFilterOptions.subtopic.length}</span>
-          <span>Difficulty: {safeFilterOptions.difficulty.length}</span>
-        </div>
-        {(safeFilterOptions.exam.length === 0 && safeFilterOptions.unit.length === 0 && 
-          safeFilterOptions.topic.length === 0 && safeFilterOptions.subtopic.length === 0) && (
-          <div className="text-amber-600 dark:text-amber-400 mt-1">
-            ⚠️ Limited filter options detected - this indicates production database needs enhanced question data.
-          </div>
-        )}
-      </div>
 
       {/* Filters */}
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">

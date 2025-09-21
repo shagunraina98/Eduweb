@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://eduweb-eo8i.onrender.com',
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://eduweb-jade-phi.vercel.app/',
   withCredentials: false,
 });
 
