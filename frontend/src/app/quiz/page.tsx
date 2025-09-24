@@ -86,17 +86,19 @@ export default function QuizPage() {
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const [showAuthMessage, setShowAuthMessage] = useState(false);
 
-  // Check authentication on component mount
+  // Require login: if user not logged in, immediately redirect to /login (no message)
   useEffect(() => {
-    if (!token && quizStarted) {
-      setShowAuthMessage(true);
+    if (!token) {
+      router.push('/login');
     }
-  }, [token, quizStarted]);
+  }, [token, router]);
 
-  // Load filter options on component mount
+  // Load filter options only when authenticated
   useEffect(() => {
-    loadFilterOptions();
-  }, []);
+    if (token) {
+      loadFilterOptions();
+    }
+  }, [token]);
 
   // Scroll to top when results are displayed
   useEffect(() => {
@@ -274,7 +276,7 @@ export default function QuizPage() {
   const submitQuiz = async () => {
     // Check authentication
     if (!token || !userId) {
-      setShowAuthMessage(true);
+      router.push('/login');
       return;
     }
 
@@ -344,20 +346,7 @@ export default function QuizPage() {
     return question.options.find(opt => opt.id === selectedOptionId);
   };
 
-  const renderAuthMessage = () => (
-    <div className="bg-yellow-900 border border-yellow-700 rounded-lg p-6 mb-6">
-      <h2 className="text-xl font-semibold text-yellow-100 mb-2">Authentication Required</h2>
-      <p className="text-yellow-200 mb-4">
-        You need to be logged in to submit a quiz. Please log in to continue.
-      </p>
-      <button
-        onClick={() => router.push('/login')}
-        className="px-6 py-2 bg-yellow-700 hover:bg-yellow-600 text-white font-medium rounded-md transition-colors"
-      >
-        Go to Login
-      </button>
-    </div>
-  );
+  // No auth message UI required per requirement (immediate redirect only)
 
   const renderFilterForm = () => (
     <div className="bg-slate-800 rounded-lg p-6 mb-6">
@@ -722,11 +711,14 @@ export default function QuizPage() {
     );
   };
 
+  // If not authenticated, nothing to render (redirect happens in effect)
+  if (!token) return null;
+
   return (
     <main className="mx-auto max-w-4xl p-6">
       <h1 className="text-3xl font-bold text-white mb-6">Quiz</h1>
       
-      {showAuthMessage && renderAuthMessage()}
+  {/* Auth message removed: immediate redirect behavior */}
       
       {quizResult ? (
         renderResults()

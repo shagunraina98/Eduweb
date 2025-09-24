@@ -5,10 +5,10 @@ const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const pool = getPool();
 
-// GET /api/quiz/start
+// GET /api/quiz/start (requires auth)
 // Enhanced endpoint with filter support and filters response
 // Query: exam, subject, unit, topic, subtopic, difficulty, limit (opt, default 10)
-router.get('/start', async (req, res) => {
+router.get('/start', authenticateToken, async (req, res) => {
   try {
     const { exam, subject, unit, topic, subtopic, difficulty } = req.query || {};
     let { limit } = req.query || {};
@@ -116,9 +116,9 @@ router.get('/start', async (req, res) => {
   }
 });
 
-// GET /api/quiz
+// GET /api/quiz (legacy start - requires auth)
 // Query: subject (opt), difficulty (opt), limit (opt, default 10)
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { subject, difficulty } = req.query || {};
     let { limit } = req.query || {};

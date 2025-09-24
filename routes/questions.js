@@ -95,7 +95,7 @@ router.get('/filters', async (req, res) => {
   }
 });
 
-// GET /api/questions
+// GET /api/questions (public)
 router.get('/', async (req, res) => {
   try {
     const { subject, difficulty, type, exam, unit, topic, subtopic } = req.query || {};

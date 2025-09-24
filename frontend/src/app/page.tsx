@@ -1,36 +1,52 @@
 import Link from 'next/link';
+import Hero from '@/components/Hero';
+import FeatureCard from '@/components/FeatureCard';
+import { clsx } from 'clsx';
 
 export default function HomePage() {
   return (
     <main>
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-sky-900 via-sky-800 to-slate-900" />
-        <div className="relative mx-auto max-w-5xl px-6 py-20 text-center text-white">
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">Start your Learning Journey</h1>
-          <p className="mt-4 text-lg md:text-xl text-sky-100">
-            Explore questions, take quizzes, and grow your skills with Eduweb.
-          </p>
-          <div className="mt-8 flex items-center justify-center gap-4">
-            <Link href="/register" className="rounded-md bg-white text-sky-700 hover:bg-sky-50 px-6 py-3 font-semibold">Sign Up</Link>
-            <Link href="/login" className="rounded-md border border-white/70 hover:bg-white/10 px-6 py-3 font-semibold">Login</Link>
-          </div>
+      <Hero />
+
+      {/* Features / Why Choose Us */}
+      <section className="mx-auto max-w-7xl px-6 md:px-8 py-12 md:py-16">
+        <h2 className="text-2xl md:text-3xl font-bold text-white text-center">Why Choose Us</h2>
+        <p className="text-slate-300 text-center mt-2">Built to help students prepare with confidence.</p>
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <FeatureCard
+            icon={<span className="material-icons">library_books</span>}
+            title="Wide Question Bank"
+            description="Access a large collection across exams, subjects, and difficulty levels."
+          />
+          <FeatureCard
+            icon={<span className="material-icons">quiz</span>}
+            title="Interactive Quizzes"
+            description="Customizable quizzes with filters so you practice exactly what you need."
+          />
+          <FeatureCard
+            icon={<span className="material-icons">insights</span>}
+            title="Progress Tracking"
+            description="See your scores and improvements over time to focus your efforts."
+          />
         </div>
       </section>
 
-      {/* Features preview */}
-      <section className="mx-auto max-w-5xl px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
-          <h3 className="text-lg font-semibold text-white">Practice Questions</h3>
-          <p className="mt-2 text-slate-300">Browse curated questions across subjects and difficulty levels.</p>
+      {/* Popular Topics / Sample Questions */}
+      <section className="mx-auto max-w-7xl px-6 md:px-8 pb-16">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl md:text-3xl font-bold text-white">Explore</h2>
+          <div className="text-sm">
+            <Link className="text-sky-400 hover:text-sky-300" href="/questions">Browse all Questions →</Link>
+          </div>
         </div>
-        <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
-          <h3 className="text-lg font-semibold text-white">Timed Quizzes</h3>
-          <p className="mt-2 text-slate-300">Test your knowledge with quick quizzes and track your progress.</p>
-        </div>
-        <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
-          <h3 className="text-lg font-semibold text-white">Admin Tools</h3>
-          <p className="mt-2 text-slate-300">Manage questions and review performance with admin features.</p>
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {['Physics','Chemistry','Mathematics','Biology','Reasoning','English'].map(t => (
+            <Link key={t} href={`/questions?subject=${encodeURIComponent(t)}`}
+              className="px-4 py-3 rounded-lg border border-slate-800 bg-slate-900/60 text-slate-100 hover:bg-slate-900 hover:border-slate-700 text-sm text-center">
+              {t}
+            </Link>
+          ))}
         </div>
       </section>
     </main>

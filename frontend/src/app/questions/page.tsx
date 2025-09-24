@@ -77,17 +77,13 @@ export default function QuestionsPage() {
   const [topic, setTopic] = React.useState('');
   const [subtopic, setSubtopic] = React.useState('');
 
-  // Remove the derived dropdown values - we'll use API data instead
+  // Questions page is public; no auth redirect needed
   React.useEffect(() => {
-    if (!token) {
-      router.replace('/login');
-      return;
-    }
-  }, [token, router]);
+    // no-op: keep for future analytics if needed
+  }, []);
 
   // Fetch questions and filters from the enhanced /api/questions endpoint
   const fetchQuestionsAndFilters = React.useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     setError(null);
     try {
@@ -100,9 +96,9 @@ export default function QuestionsPage() {
       if (topic) params.topic = topic;
       if (subtopic) params.subtopic = subtopic;
       
-      const res = await api.get<QuestionsResponse>('/api/questions', {
+      const res = await api.get<QuestionsResponse>('/api/questions', { 
         params,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 'X-Skip-Auth': 'true' }
       });
       
       // Handle both old and new API structures
