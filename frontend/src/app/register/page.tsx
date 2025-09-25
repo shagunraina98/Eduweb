@@ -38,9 +38,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center">
-      <div className="w-full max-w-md bg-white/70 dark:bg-neutral-900/70 rounded-lg shadow p-6">
-        <h1 className="text-2xl font-semibold mb-4 text-center">Create your account</h1>
+    <div className="min-h-[70vh] flex items-center justify-center bg-background">
+      <div className="w-full max-w-md bg-card rounded-lg shadow p-6 border border-textSecondary/20">
+        <h1 className="text-2xl font-semibold mb-4 text-center text-textPrimary">Create your account</h1>
         {error && (
           <div className="mb-4 rounded border border-red-300 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>
         )}
@@ -53,7 +53,7 @@ export default function RegisterPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-textSecondary/30 bg-card px-3 py-2 outline-none focus:ring-2 focus:ring-primary"
               placeholder="Your name"
               autoComplete="name"
             />
@@ -66,7 +66,7 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-textSecondary/30 bg-card px-3 py-2 outline-none focus:ring-2 focus:ring-primary"
               placeholder="you@example.com"
               autoComplete="email"
             />
@@ -79,7 +79,7 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-textSecondary/30 bg-card px-3 py-2 outline-none focus:ring-2 focus:ring-primary"
               placeholder="••••••••"
               autoComplete="new-password"
             />
@@ -87,15 +87,15 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-primary hover:opacity-90 text-white px-4 py-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating account…' : 'Sign Up'}
           </button>
         </form>
 
-        <p className="mt-4 text-sm text-center text-neutral-500">
+        <p className="mt-4 text-sm text-center text-textSecondary">
           Already have an account?{' '}
-          <Link href="/login" className="text-blue-600 hover:underline">Log in</Link>
+          <Link href="/login" className="text-primary hover:underline">Log in</Link>
         </p>
       </div>
     </div>

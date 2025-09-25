@@ -2,16 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #0b1020;
-  --foreground: #f8fafc;
-}
-
 html, body {
   height: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  color: theme('colors.textPrimary');
+  background: theme('colors.background');
 }

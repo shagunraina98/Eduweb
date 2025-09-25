@@ -20,10 +20,10 @@ type Props = {
 export default function QuestionCard({ index, text, meta = [], options, selected, onSelect, showCorrect }: Props) {
   const correct = options.find(o => !!o.is_correct);
   return (
-    <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-sm">
+    <div className="bg-card rounded-lg p-6 border border-textSecondary/20 shadow-sm">
       <div className="mb-3">
         {!!meta.length && (
-          <div className="flex flex-wrap gap-2 text-xs text-slate-300">
+          <div className="flex flex-wrap gap-2 text-xs text-textSecondary">
             {meta.map((m, i) => (
               m.value ? (
                 <span key={i} className="px-2 py-1 bg-slate-900 rounded-md border border-slate-700">
@@ -33,7 +33,7 @@ export default function QuestionCard({ index, text, meta = [], options, selected
             ))}
           </div>
         )}
-        <h3 className="text-base md:text-lg font-medium text-white mt-2">
+        <h3 className="text-base md:text-lg font-medium text-textPrimary mt-2">
           {typeof index === 'number' ? `${index + 1}. ` : ''}{text}
         </h3>
       </div>
@@ -48,8 +48,8 @@ export default function QuestionCard({ index, text, meta = [], options, selected
               onClick={() => onSelect?.(opt.id)}
               className={`w-full text-left px-3 py-2 rounded-md border transition-colors ${
                 isSelected
-                  ? 'bg-sky-950 border-sky-700 text-white'
-                  : 'bg-slate-900/60 border-slate-700 text-slate-100 hover:bg-slate-900'
+                  ? 'bg-primary/10 border-primary text-textPrimary'
+                  : 'bg-card border-textSecondary/30 text-textPrimary hover:bg-background'
               }`}
             >
               <span className="font-medium mr-2">{opt.label}.</span>
@@ -60,7 +60,7 @@ export default function QuestionCard({ index, text, meta = [], options, selected
       </div>
 
       {showCorrect && correct && (
-        <div className="mt-4 text-sm text-green-300">
+        <div className="mt-4 text-sm text-primary">
           <span className="font-semibold">Correct Answer:</span> {correct.option_text}
         </div>
       )}

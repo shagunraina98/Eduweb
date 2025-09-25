@@ -55,6 +55,7 @@ export default function QuestionsPage() {
   });
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [visibleAnswers, setVisibleAnswers] = React.useState<Record<number, boolean>>({});
 
   // Ensure questions is always an array
   const safeQuestions = Array.isArray(questions) ? questions : [];
@@ -170,6 +171,13 @@ export default function QuestionsPage() {
     setSubtopic('');
   }
 
+  function toggleAnswerVisibility(questionId: number) {
+    setVisibleAnswers((prev) => ({
+      ...prev,
+      [questionId]: !prev[questionId],
+    }));
+  }
+
   return (
     <div className="max-w-6xl mx-auto p-4">
       <h1 className="text-2xl font-semibold mb-4">Questions</h1>
@@ -179,7 +187,7 @@ export default function QuestionsPage() {
         <div>
           <label className="block text-sm font-medium mb-1">Exam</label>
           <select
-            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            className="w-full rounded-md border border-textSecondary/30 bg-background px-3 py-2 text-textPrimary"
             value={exam}
             onChange={(e) => setExam(e.target.value)}
           >
@@ -192,7 +200,7 @@ export default function QuestionsPage() {
         <div>
           <label className="block text-sm font-medium mb-1">Subject</label>
           <select
-            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            className="w-full rounded-md border border-textSecondary/30 bg-background px-3 py-2 text-textPrimary"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
           >
@@ -205,7 +213,7 @@ export default function QuestionsPage() {
         <div>
           <label className="block text-sm font-medium mb-1">Unit</label>
           <select
-            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            className="w-full rounded-md border border-textSecondary/30 bg-background px-3 py-2 text-textPrimary"
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
           >
@@ -218,7 +226,7 @@ export default function QuestionsPage() {
         <div>
           <label className="block text-sm font-medium mb-1">Topic</label>
           <select
-            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            className="w-full rounded-md border border-textSecondary/30 bg-background px-3 py-2 text-textPrimary"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
           >
@@ -231,7 +239,7 @@ export default function QuestionsPage() {
         <div>
           <label className="block text-sm font-medium mb-1">Sub-topic</label>
           <select
-            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            className="w-full rounded-md border border-textSecondary/30 bg-background px-3 py-2 text-textPrimary"
             value={subtopic}
             onChange={(e) => setSubtopic(e.target.value)}
           >
@@ -244,7 +252,7 @@ export default function QuestionsPage() {
         <div>
           <label className="block text-sm font-medium mb-1">Difficulty</label>
           <select
-            className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2"
+            className="w-full rounded-md border border-textSecondary/30 bg-background px-3 py-2 text-textPrimary"
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value)}
           >
@@ -272,7 +280,7 @@ export default function QuestionsPage() {
       <div className="mb-6 flex gap-2">
         <button
           onClick={fetchQuestionsAndFilters}
-          className="rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium"
+          className="rounded-md bg-primary hover:opacity-90 text-white px-4 py-2 font-medium"
         >
           Apply Filters
         </button>
@@ -297,39 +305,37 @@ export default function QuestionsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {safeQuestions.map((q) => (
-            <div key={q.id} className="bg-gray-800 rounded-lg shadow p-4">
+            <div key={q.id} className="bg-card border border-textSecondary/20 rounded-lg shadow p-4">
               <div className="mb-2">
-                <div className="text-sm text-neutral-400">
-                  {(q.exam || q.subject || q.unit || q.topic || q.subtopic || q.difficulty || q.type) && (
-                    <div className="space-y-1">
-                      {q.exam && <div><span className="font-medium">Exam:</span> {q.exam}</div>}
-                      {q.subject && <div><span className="font-medium">Subject:</span> {q.subject}</div>}
-                      {q.unit && <div><span className="font-medium">Unit:</span> {q.unit}</div>}
-                      {q.topic && <div><span className="font-medium">Topic:</span> {q.topic}</div>}
-                      {q.subtopic && <div><span className="font-medium">Subtopic:</span> {q.subtopic}</div>}
-                      <div>
-                        {[q.difficulty, q.type].filter(Boolean).join(' • ')}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <h2 className="text-lg font-semibold text-white mt-2">{q.text}</h2>
+                {/* Only show question text now */}
+                <h2 className="text-lg font-semibold text-textPrimary mt-2">{q.text}</h2>
               </div>
               <div className="mt-3">
                 {Array.isArray(q.options) && q.options?.map((opt) => (
-                  <div key={opt.id} className="mt-1 text-white text-sm">
+                  <div key={opt.id} className="mt-1 text-textPrimary text-sm">
                     <span className="font-medium mr-1">{opt.label}.</span>
                     {opt.option_text}
                   </div>
                 ))}
-                {(() => {
-                  const correct = q.options?.find(o => !!o.is_correct);
-                  return correct ? (
-                    <div className="text-green-400 font-semibold mt-2">
-                      Correct Answer: {correct.option_text}
-                    </div>
-                  ) : null;
-                })()}
+                {/* Toggleable Answer */}
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    className="bg-primary text-white px-3 py-1 rounded-md hover:bg-primary/80"
+                    onClick={() => toggleAnswerVisibility(q.id)}
+                  >
+                    {visibleAnswers[q.id] ? 'Hide Answer' : 'Show Answer'}
+                  </button>
+                  {visibleAnswers[q.id] && (() => {
+                    const correct = q.options?.find(o => !!o.is_correct);
+                    if (!correct) return null;
+                    return (
+                      <div className="text-green-700 font-semibold mt-2">
+                        Correct Answer: {correct.option_text}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
           ))}

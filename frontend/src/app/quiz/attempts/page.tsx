@@ -99,7 +99,7 @@ export default function QuizAttemptsPage() {
     return (
       <main className="mx-auto max-w-6xl p-6">
         <div className="flex justify-center items-center py-12">
-          <div className="text-white text-lg">Loading quiz attempts...</div>
+          <div className="text-textSecondary text-lg">Loading quiz attempts...</div>
         </div>
       </main>
     );
@@ -108,12 +108,12 @@ export default function QuizAttemptsPage() {
   if (error) {
     return (
       <main className="mx-auto max-w-6xl p-6">
-        <div className="bg-red-900 border border-red-700 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-red-100 mb-2">Error</h2>
-          <p className="text-red-200 mb-4">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-red-700 mb-2">Error</h2>
+          <p className="text-red-700 mb-4">{error}</p>
           <button
             onClick={fetchAttempts}
-            className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-md transition-colors"
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
           >
             Try Again
           </button>
@@ -125,24 +125,24 @@ export default function QuizAttemptsPage() {
   return (
     <main className="mx-auto max-w-6xl p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-white">Quiz Attempts</h1>
+        <h1 className="text-3xl font-bold text-textPrimary">Quiz Attempts</h1>
         <button
           onClick={() => router.push('/quiz')}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+          className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-md transition-colors"
         >
           Take New Quiz
         </button>
       </div>
 
       {attempts.length === 0 ? (
-        <div className="bg-slate-800 rounded-lg p-8 text-center">
-          <h2 className="text-xl font-semibold text-white mb-2">No Quiz Attempts Yet</h2>
-          <p className="text-slate-300 mb-4">
+        <div className="bg-card border border-textSecondary/20 rounded-lg p-8 text-center">
+          <h2 className="text-xl font-semibold text-textPrimary mb-2">No Quiz Attempts Yet</h2>
+          <p className="text-textSecondary mb-4">
             You haven't taken any quizzes yet. Start your first quiz to see your results here.
           </p>
           <button
             onClick={() => router.push('/quiz')}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+            className="px-6 py-2 bg-primary hover:opacity-90 text-white font-medium rounded-md transition-colors"
           >
             Take Your First Quiz
           </button>
@@ -154,10 +154,10 @@ export default function QuizAttemptsPage() {
             const percentage = Math.round((attempt.score / attempt.total) * 100);
             
             return (
-              <div key={attempt.id} className="bg-slate-800 rounded-lg overflow-hidden">
+              <div key={attempt.id} className="bg-card border border-textSecondary/20 rounded-lg overflow-hidden">
                 {/* Attempt Summary */}
                 <div 
-                  className="p-6 cursor-pointer hover:bg-slate-750 transition-colors"
+                  className="p-6 cursor-pointer hover:bg-background transition-colors"
                   onClick={() => toggleAttemptDetails(attempt.id)}
                 >
                   <div className="flex items-center justify-between">
@@ -168,10 +168,10 @@ export default function QuizAttemptsPage() {
                         </span>
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-white">
+                        <h3 className="text-lg font-semibold text-textPrimary">
                           Quiz #{attempt.id}
                         </h3>
-                        <p className="text-slate-300 text-sm">
+                        <p className="text-textSecondary text-sm">
                           {formatDate(attempt.created_at)}
                         </p>
                       </div>
@@ -182,11 +182,11 @@ export default function QuizAttemptsPage() {
                         <div className={`text-2xl font-bold ${getScoreColor(attempt.score, attempt.total)}`}>
                           {percentage}%
                         </div>
-                        <div className="text-slate-400 text-sm">
+                        <div className="text-textSecondary text-sm">
                           {attempt.answers.length} questions
                         </div>
                       </div>
-                      <div className="text-slate-400">
+                      <div className="text-textSecondary">
                         <svg 
                           className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                           fill="currentColor" 
@@ -201,22 +201,22 @@ export default function QuizAttemptsPage() {
 
                 {/* Expanded Details */}
                 {isExpanded && (
-                  <div className="border-t border-slate-700 p-6">
-                    <h4 className="text-lg font-medium text-white mb-4">Question Details</h4>
+                  <div className="border-t border-textSecondary/20 p-6">
+                    <h4 className="text-lg font-medium text-textPrimary mb-4">Question Details</h4>
                     <div className="space-y-4">
                       {attempt.answers.map((answer, index) => {
                         const isCorrect = answer.selected_option_id === answer.correct_option_id;
                         
                         return (
-                          <div key={`${attempt.id}-${answer.question_id}`} className="bg-slate-900 rounded-lg p-4">
+                          <div key={`${attempt.id}-${answer.question_id}`} className="bg-background rounded-lg p-4 border border-textSecondary/20">
                             <div className="flex items-start justify-between mb-3">
-                              <h5 className="text-white font-medium">
+                              <h5 className="text-textPrimary font-medium">
                                 Question {index + 1}
                               </h5>
                               <span className={`px-2 py-1 rounded text-sm font-medium ${
                                 isCorrect 
-                                  ? 'bg-green-900 text-green-300' 
-                                  : 'bg-red-900 text-red-300'
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-red-100 text-red-700'
                               }`}>
                                 {isCorrect ? 'Correct' : 'Incorrect'}
                               </span>
@@ -226,20 +226,20 @@ export default function QuizAttemptsPage() {
                               {/* Selected Answer */}
                               <div className={`p-3 rounded ${
                                 isCorrect 
-                                  ? 'bg-green-900 border border-green-700' 
-                                  : 'bg-red-900 border border-red-700'
+                                  ? 'bg-green-50 border border-green-200' 
+                                  : 'bg-red-50 border border-red-200'
                               }`}>
-                                <span className="text-white font-medium">Your answer: </span>
-                                <span className={isCorrect ? 'text-green-300' : 'text-red-300'}>
+                                <span className="text-textPrimary font-medium">Your answer: </span>
+                                <span className={isCorrect ? 'text-green-700' : 'text-red-700'}>
                                   {answer.selected_text}
                                 </span>
                               </div>
                               
                               {/* Correct Answer (if different) */}
                               {!isCorrect && (
-                                <div className="p-3 rounded bg-green-900 border border-green-700">
-                                  <span className="text-white font-medium">Correct answer: </span>
-                                  <span className="text-green-300">
+                                <div className="p-3 rounded bg-green-50 border border-green-200">
+                                  <span className="text-textPrimary font-medium">Correct answer: </span>
+                                  <span className="text-green-700">
                                     {answer.correct_text}
                                   </span>
                                 </div>

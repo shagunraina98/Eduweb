@@ -24,16 +24,16 @@ export default function Header() {
 
   const linkBase = 'text-sm md:text-[15px] font-medium transition-colors';
   const linkClass = (href: string) => (
-    `${linkBase} ${pathname === href ? 'text-white' : 'text-slate-200 hover:text-white'}`
+    `${linkBase} ${pathname === href ? 'text-textPrimary' : 'text-textSecondary hover:text-textPrimary'}`
   );
 
   return (
-    <header className={`sticky top-0 z-40 transition-colors ${scrolled ? 'bg-slate-900/90 shadow-md shadow-slate-900/30 backdrop-blur-sm' : 'bg-transparent'}`}>
+    <header className={`sticky top-0 z-40 transition-colors ${scrolled ? 'bg-white/90 shadow-md backdrop-blur-sm' : 'bg-white/80'}`}>
       <nav className="mx-auto max-w-7xl px-4 md:px-6 py-3 flex items-center justify-between">
         {/* Left: Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-sky-600 text-white font-bold">E</span>
-          <span className="text-lg md:text-xl font-semibold text-white">Eduweb</span>
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-white font-bold">E</span>
+          <span className="text-lg md:text-xl font-semibold text-textPrimary">Eduweb</span>
         </Link>
 
         {/* Center: Nav */}
@@ -50,11 +50,11 @@ export default function Header() {
         <div className="flex items-center gap-3">
           {!token ? (
             <>
-              <Link className="hidden md:inline-block text-slate-200 hover:text-white text-sm" href="/login">Login</Link>
-              <Link className="inline-flex items-center rounded-md bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 text-sm shadow-sm" href="/register">Sign Up</Link>
+              <Link className="hidden md:inline-block text-textSecondary hover:text-textPrimary text-sm" href="/login">Login</Link>
+              <Link className="inline-flex items-center rounded-md bg-primary hover:opacity-90 text-white px-3 py-1.5 text-sm shadow-sm" href="/register">Sign Up</Link>
             </>
           ) : (
-            <button onClick={handleLogout} className="inline-flex items-center rounded-md bg-slate-800 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-700 border border-slate-700">Logout</button>
+            <button onClick={handleLogout} className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm text-white hover:opacity-90">Logout</button>
           )}
         </div>
       </nav>

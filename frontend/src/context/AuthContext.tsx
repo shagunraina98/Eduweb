@@ -1,5 +1,6 @@
 "use client";
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 type Role = 'student' | 'admin' | null;
 
@@ -44,6 +45,7 @@ function parseJwt(token: string): any {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<AuthState>({ token: null, user: null });
+  const router = useRouter();
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -80,7 +82,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem('jwt', token);
     window.localStorage.setItem('user', JSON.stringify(user));
     setState({ token, user });
-  }, []);
+    // Redirect to dashboard after successful login
+    try {
+      router.push('/dashboard');
+    } catch {}
+  }, [router]);
 
   const logout = React.useCallback(() => {
     window.localStorage.removeItem('jwt');

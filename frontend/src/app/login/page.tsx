@@ -13,11 +13,10 @@ export default function LoginPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
-  // If already logged in, send to appropriate page
+  // If already logged in, go to dashboard
   React.useEffect(() => {
     if (!role) return;
-    if (role === 'admin') router.replace('/admin');
-    if (role === 'student') router.replace('/questions');
+    router.replace('/dashboard');
   }, [role, router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -29,8 +28,7 @@ export default function LoginPage() {
       const { token, user } = res.data || {};
       if (!token || !user) throw new Error('Invalid response');
       login(token, user);
-      if (user.role === 'admin') router.push('/admin');
-      else router.push('/questions');
+  // AuthContext will redirect to /dashboard
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Invalid email or password';
       setError(msg);
@@ -40,9 +38,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center">
-      <div className="w-full max-w-md bg-white/70 dark:bg-neutral-900/70 rounded-lg shadow p-6">
-        <h1 className="text-2xl font-semibold mb-4 text-center">Login</h1>
+    <div className="min-h-[70vh] flex items-center justify-center bg-background">
+      <div className="w-full max-w-md bg-card rounded-lg shadow p-6 border border-textSecondary/20">
+        <h1 className="text-2xl font-semibold mb-4 text-center text-textPrimary">Login</h1>
         {error && (
           <div className="mb-4 rounded border border-red-300 bg-red-50 text-red-700 px-3 py-2 text-sm">
             {error}
@@ -57,7 +55,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-textSecondary/30 bg-card px-3 py-2 outline-none focus:ring-2 focus:ring-primary"
               placeholder="you@example.com"
               autoComplete="email"
             />
@@ -70,7 +68,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-textSecondary/30 bg-card px-3 py-2 outline-none focus:ring-2 focus:ring-primary"
               placeholder="••••••••"
               autoComplete="current-password"
             />
@@ -78,7 +76,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-primary hover:opacity-90 text-white px-4 py-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
