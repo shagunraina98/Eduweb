@@ -82,9 +82,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem('jwt', token);
     window.localStorage.setItem('user', JSON.stringify(user));
     setState({ token, user });
-    // Redirect to dashboard after successful login
+    // Redirect priority: next param (query or sessionStorage) -> role-based fallback
     try {
-      router.push('/dashboard');
+      let nextPath: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const url = new URL(window.location.href);
+          nextPath = url.searchParams.get('next');
+        } catch {}
+        // Fallback to sessionStorage if available
+        const storedNext = window.sessionStorage.getItem('nextPath');
+        if (!nextPath && storedNext) {
+          nextPath = storedNext;
+        }
+        if (nextPath) {
+          // Clean up stored next path to avoid stale redirects
+          window.sessionStorage.removeItem('nextPath');
+          router.push(nextPath);
+          return;
+        }
+      }
+      // Role-based fallback
+      if (user.role === 'admin') router.push('/admin');
+      else router.push('/');
     } catch {}
   }, [router]);
 

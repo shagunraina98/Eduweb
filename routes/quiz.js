@@ -186,7 +186,9 @@ router.get('/attempts', authenticateToken, async (req, res) => {
 
     // Get all quiz attempts for the user
     const [attemptRows] = await pool.query(
-      `SELECT id, score, total, created_at 
+      `SELECT id, score,
+              COALESCE(total_questions, total) AS total_questions,
+              created_at 
        FROM quiz_attempts 
        WHERE user_id = ? 
        ORDER BY created_at DESC`,
@@ -201,42 +203,95 @@ router.get('/attempts', authenticateToken, async (req, res) => {
     const attemptIds = attemptRows.map(attempt => attempt.id);
 
     // Fetch all answers for these attempts with option texts
-    const [answerRows] = await pool.query(
-      `SELECT 
-         qaa.attempt_id,
-         qaa.question_id,
-         qaa.selected_option_id,
-         qaa.correct_option_id,
-         selected_opt.option_text AS selected_text,
-         correct_opt.option_text AS correct_text
-       FROM quiz_attempt_answers qaa
-       LEFT JOIN options selected_opt ON qaa.selected_option_id = selected_opt.id
-       LEFT JOIN options correct_opt ON qaa.correct_option_id = correct_opt.id
-       WHERE qaa.attempt_id IN (${attemptIds.map(() => '?').join(',')})
-       ORDER BY qaa.attempt_id, qaa.question_id`,
-      attemptIds
-    );
+    let answerRows;
+    try {
+      [answerRows] = await pool.query(
+        `SELECT 
+           qaa.attempt_id,
+           qaa.question_id,
+           qaa.selected_option_id,
+           qaa.correct_option_id,
+           qaa.is_correct,
+           selected_opt.option_text AS selected_text,
+           correct_opt.option_text AS correct_text
+         FROM quiz_attempt_answers qaa
+         LEFT JOIN options selected_opt ON qaa.selected_option_id = selected_opt.id
+         LEFT JOIN options correct_opt ON qaa.correct_option_id = correct_opt.id
+         WHERE qaa.attempt_id IN (${attemptIds.map(() => '?').join(',')})
+         ORDER BY qaa.attempt_id, qaa.question_id`,
+        attemptIds
+      );
+    } catch (e) {
+      if (e && e.code === 'ER_BAD_FIELD_ERROR') {
+        [answerRows] = await pool.query(
+          `SELECT 
+             qaa.attempt_id,
+             qaa.question_id,
+             qaa.selected_option_id,
+             qaa.correct_option_id,
+             selected_opt.option_text AS selected_text,
+             correct_opt.option_text AS correct_text
+           FROM quiz_attempt_answers qaa
+           LEFT JOIN options selected_opt ON qaa.selected_option_id = selected_opt.id
+           LEFT JOIN options correct_opt ON qaa.correct_option_id = correct_opt.id
+           WHERE qaa.attempt_id IN (${attemptIds.map(() => '?').join(',')})
+           ORDER BY qaa.attempt_id, qaa.question_id`,
+          attemptIds
+        );
+        answerRows = answerRows.map(r => ({ ...r, is_correct: r.selected_option_id === r.correct_option_id ? 1 : 0 }));
+      } else {
+        throw e;
+      }
+    }
 
-    // Group answers by attempt_id
+    // Fetch options and question text for all involved questions
+    const qIds = [...new Set(answerRows.map(a => a.question_id))];
+    const optionsByQ = new Map();
+    const questionTextById = new Map();
+    if (qIds.length > 0) {
+      const [optRows] = await pool.query(
+        `SELECT id, question_id, label, option_text, is_correct 
+         FROM options 
+         WHERE question_id IN (${qIds.map(() => '?').join(',')})
+         ORDER BY question_id, id`,
+        qIds
+      );
+      for (const r of optRows) {
+        if (!optionsByQ.has(r.question_id)) optionsByQ.set(r.question_id, []);
+        optionsByQ.get(r.question_id).push({ id: r.id, label: r.label, option_text: r.option_text, is_correct: !!r.is_correct });
+      }
+      const [qtRows] = await pool.query(
+        `SELECT id, \`text\` AS question_text FROM questions WHERE id IN (${qIds.map(() => '?').join(',')})`,
+        qIds
+      );
+      for (const r of qtRows) {
+        questionTextById.set(r.id, r.question_text);
+      }
+    }
+
+    // Group answers by attempt_id and attach options + question text
     const answersByAttempt = new Map();
-    answerRows.forEach(answer => {
+    for (const answer of answerRows) {
       if (!answersByAttempt.has(answer.attempt_id)) {
         answersByAttempt.set(answer.attempt_id, []);
       }
       answersByAttempt.get(answer.attempt_id).push({
         question_id: answer.question_id,
+        question_text: questionTextById.get(answer.question_id) || '',
         selected_option_id: answer.selected_option_id,
         selected_text: answer.selected_text,
         correct_option_id: answer.correct_option_id,
-        correct_text: answer.correct_text
+        correct_text: answer.correct_text,
+        is_correct: !!answer.is_correct,
+        options: optionsByQ.get(answer.question_id) || []
       });
-    });
+    }
 
     // Combine attempts with their answers
     const result = attemptRows.map(attempt => ({
       id: attempt.id,
       score: attempt.score,
-      total: attempt.total,
+      total_questions: attempt.total_questions,
       created_at: attempt.created_at,
       answers: answersByAttempt.get(attempt.id) || []
     }));
@@ -347,37 +402,78 @@ router.post('/submit', authenticateToken, async (req, res) => {
       });
     }
 
-    const total = answers.length;
+  const total = answers.length;
 
     // Start transaction to save attempt and answers
     await connection.beginTransaction();
 
     try {
-      // Insert quiz attempt record
-      const [attemptResult] = await connection.query(
-        'INSERT INTO quiz_attempts (user_id, score, total) VALUES (?, ?, ?)',
-        [userId, score, total]
-      );
+      // Insert quiz attempt record with maximum compatibility:
+      // 1) Try both columns (total_questions, total) to satisfy NOT NULL legacy 'total'
+      // 2) If 'total' missing, try only total_questions
+      // 3) If 'total_questions' missing, try legacy 'total' only
+      let attemptResult;
+      try {
+        [attemptResult] = await connection.query(
+          'INSERT INTO quiz_attempts (user_id, score, total_questions, total) VALUES (?, ?, ?, ?)',
+          [userId, score, total, total]
+        );
+      } catch (e1) {
+        if (e1 && e1.code === 'ER_BAD_FIELD_ERROR') {
+          try {
+            [attemptResult] = await connection.query(
+              'INSERT INTO quiz_attempts (user_id, score, total_questions) VALUES (?, ?, ?)',
+              [userId, score, total]
+            );
+          } catch (e2) {
+            if (e2 && e2.code === 'ER_BAD_FIELD_ERROR') {
+              [attemptResult] = await connection.query(
+                'INSERT INTO quiz_attempts (user_id, score, total) VALUES (?, ?, ?)',
+                [userId, score, total]
+              );
+            } else {
+              throw e2;
+            }
+          }
+        } else {
+          throw e1;
+        }
+      }
 
       const attemptId = attemptResult.insertId;
 
       // Insert quiz attempt answers
       const answerInserts = answers.map(answer => {
         const correctOption = correctOptionMap.get(answer.question_id);
+        const selectedOption = optionMap.get(answer.selected_option_id);
+        const isCorrect = selectedOption && selectedOption.is_correct === 1 ? 1 : 0;
         return [
           attemptId,
           answer.question_id,
           answer.selected_option_id,
-          correctOption.id
+          correctOption.id,
+          isCorrect
         ];
       });
 
       if (answerInserts.length > 0) {
-        await connection.query(
-          `INSERT INTO quiz_attempt_answers (attempt_id, question_id, selected_option_id, correct_option_id) 
-           VALUES ${answerInserts.map(() => '(?, ?, ?, ?)').join(', ')}`,
-          answerInserts.flat()
-        );
+        try {
+          await connection.query(
+            `INSERT INTO quiz_attempt_answers (attempt_id, question_id, selected_option_id, correct_option_id, is_correct) 
+             VALUES ${answerInserts.map(() => '(?, ?, ?, ?, ?)').join(', ')}`,
+            answerInserts.flat()
+          );
+        } catch (e) {
+          if (e && e.code === 'ER_BAD_FIELD_ERROR') {
+            await connection.query(
+              `INSERT INTO quiz_attempt_answers (attempt_id, question_id, selected_option_id, correct_option_id) 
+               VALUES ${answerInserts.map(() => '(?, ?, ?, ?)').join(', ')}`,
+              answerInserts.map(([aId, qId, selId, corrId/*, isCorr*/]) => [aId, qId, selId, corrId]).flat()
+            );
+          } else {
+            throw e;
+          }
+        }
       }
 
       // Commit transaction
@@ -386,7 +482,7 @@ router.post('/submit', authenticateToken, async (req, res) => {
       // Return success response
       res.json({
         score,
-        total,
+        total_questions: total,
         percentage: Math.round((score / total) * 100),
         attempt_id: attemptId,
         details
@@ -403,6 +499,104 @@ router.post('/submit', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to process quiz submission' });
   } finally {
     connection.release();
+  }
+});
+
+// GET /api/quiz/attempts/:id - details for one attempt
+router.get('/attempts/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const attemptId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(attemptId)) return res.status(400).json({ error: 'Invalid id' });
+
+    const [attemptRows] = await pool.query(
+      `SELECT id, user_id, score, COALESCE(total_questions, total) AS total_questions, created_at
+       FROM quiz_attempts WHERE id = ?`,
+      [attemptId]
+    );
+    if (!attemptRows || attemptRows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const attempt = attemptRows[0];
+    if (attempt.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    let answers;
+    try {
+      [answers] = await pool.query(
+        `SELECT 
+           qaa.question_id,
+           q.text AS question_text,
+           qaa.selected_option_id,
+           qaa.correct_option_id,
+           qaa.is_correct,
+           so.option_text AS selected_text,
+           co.option_text AS correct_text
+         FROM quiz_attempt_answers qaa
+         JOIN questions q ON q.id = qaa.question_id
+         LEFT JOIN options so ON so.id = qaa.selected_option_id
+         LEFT JOIN options co ON co.id = qaa.correct_option_id
+         WHERE qaa.attempt_id = ?
+         ORDER BY qaa.question_id`,
+        [attemptId]
+      );
+    } catch (e) {
+      if (e && e.code === 'ER_BAD_FIELD_ERROR') {
+        [answers] = await pool.query(
+          `SELECT 
+             qaa.question_id,
+             q.text AS question_text,
+             qaa.selected_option_id,
+             qaa.correct_option_id,
+             so.option_text AS selected_text,
+             co.option_text AS correct_text
+           FROM quiz_attempt_answers qaa
+           JOIN questions q ON q.id = qaa.question_id
+           LEFT JOIN options so ON so.id = qaa.selected_option_id
+           LEFT JOIN options co ON co.id = qaa.correct_option_id
+           WHERE qaa.attempt_id = ?
+           ORDER BY qaa.question_id`,
+          [attemptId]
+        );
+        answers = answers.map(r => ({ ...r, is_correct: r.selected_option_id === r.correct_option_id ? 1 : 0 }));
+      } else {
+        throw e;
+      }
+    }
+
+    // Fetch all options for these questions
+    const qIds = [...new Set(answers.map(a => a.question_id))];
+    const optionsByQ = new Map();
+    if (qIds.length > 0) {
+      const [optRows] = await pool.query(
+        `SELECT id, question_id, label, option_text 
+         FROM options 
+         WHERE question_id IN (${qIds.map(() => '?').join(',')})
+         ORDER BY question_id, id`,
+        qIds
+      );
+      for (const r of optRows) {
+        if (!optionsByQ.has(r.question_id)) optionsByQ.set(r.question_id, []);
+        optionsByQ.get(r.question_id).push({ id: r.id, label: r.label, option_text: r.option_text });
+      }
+    }
+
+    return res.json({
+      id: attempt.id,
+      score: attempt.score,
+      total_questions: attempt.total_questions,
+      created_at: attempt.created_at,
+      answers: answers.map(a => ({
+        question_id: a.question_id,
+        question_text: a.question_text,
+        selected_option_id: a.selected_option_id,
+        selected_text: a.selected_text,
+        correct_option_id: a.correct_option_id,
+        correct_text: a.correct_text,
+        is_correct: !!a.is_correct,
+        options: optionsByQ.get(a.question_id) || []
+      }))
+    });
+  } catch (err) {
+    console.error('Get attempt detail error:', err);
+    return res.status(500).json({ error: 'Failed to fetch attempt detail' });
   }
 });
 

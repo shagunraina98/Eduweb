@@ -25,7 +25,8 @@ const mysql = require('mysql2/promise');
   const files = fs
     .readdirSync(dir)
     .filter(f => f.match(/^\d+_.*\.sql$/))
-    .filter(f => f !== '002_alter_questions_add_columns.sql')
+    // Skip raw ALTER scripts that may duplicate columns or use unsupported syntax; we'll add missing columns idempotently below
+    .filter(f => !['002_alter_questions_add_columns.sql','003_add_metadata_columns.sql','004_alter_quiz_attempts_answers.sql'].includes(f))
     .sort();
   for (const f of files) {
     const sql = fs.readFileSync(path.join(dir, f), 'utf8');
@@ -43,9 +44,60 @@ const mysql = require('mysql2/promise');
   if (!have.has('subject')) alters.push('ADD COLUMN `subject` VARCHAR(100) NOT NULL');
   if (!have.has('difficulty')) alters.push('ADD COLUMN `difficulty` VARCHAR(50) NOT NULL');
   if (!have.has('type')) alters.push('ADD COLUMN `type` VARCHAR(50) NOT NULL');
+  // Optional metadata columns used by filters
+  if (!have.has('exam')) alters.push('ADD COLUMN `exam` VARCHAR(100) NULL');
+  if (!have.has('unit')) alters.push('ADD COLUMN `unit` VARCHAR(100) NULL');
+  if (!have.has('topic')) alters.push('ADD COLUMN `topic` VARCHAR(100) NULL');
+  if (!have.has('subtopic')) alters.push('ADD COLUMN `subtopic` VARCHAR(100) NULL');
   if (alters.length) {
     const stmt = `ALTER TABLE \`questions\` ${alters.join(', ')}`;
     console.log('Altering questions:', stmt);
+    await conn.query(stmt);
+  }
+
+  // Ensure quiz_attempts table exists
+  const [tables] = await conn.query(
+    'SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?, ?)',
+    [DB_NAME, 'quiz_attempts', 'quiz_attempt_answers']
+  );
+  const tableSet = new Set(tables.map(t => t.TABLE_NAME));
+  if (!tableSet.has('quiz_attempts') || !tableSet.has('quiz_attempt_answers')) {
+    const qaSql = fs.readFileSync(path.join(dir, '003_quiz_attempts.sql'), 'utf8');
+    console.log('Ensuring quiz attempts tables');
+    await conn.query(qaSql);
+  }
+
+  // Ensure columns on quiz_attempts and quiz_attempt_answers
+  const [qaCols] = await conn.query(
+    'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
+    [DB_NAME, 'quiz_attempts']
+  );
+  const qaHave = new Set(qaCols.map(c => c.COLUMN_NAME));
+  const qaAlters = [];
+  if (!qaHave.has('total') && !qaHave.has('total_questions')) {
+    qaAlters.push('ADD COLUMN `total` INT NOT NULL DEFAULT 0');
+  }
+  if (!qaHave.has('total_questions')) {
+    qaAlters.push('ADD COLUMN `total_questions` INT NOT NULL DEFAULT 0 AFTER `score`');
+  }
+  if (qaAlters.length) {
+    const stmt = `ALTER TABLE \`quiz_attempts\` ${qaAlters.join(', ')}`;
+    console.log('Altering quiz_attempts:', stmt);
+    await conn.query(stmt);
+  }
+
+  const [qaaCols] = await conn.query(
+    'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
+    [DB_NAME, 'quiz_attempt_answers']
+  );
+  const qaaHave = new Set(qaaCols.map(c => c.COLUMN_NAME));
+  const qaaAlters = [];
+  if (!qaaHave.has('is_correct')) {
+    qaaAlters.push('ADD COLUMN `is_correct` TINYINT(1) NOT NULL DEFAULT 0 AFTER `selected_option_id`');
+  }
+  if (qaaAlters.length) {
+    const stmt = `ALTER TABLE \`quiz_attempt_answers\` ${qaaAlters.join(', ')}`;
+    console.log('Altering quiz_attempt_answers:', stmt);
     await conn.query(stmt);
   }
   await conn.end();

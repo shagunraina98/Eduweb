@@ -8,7 +8,7 @@ type Props = {
 
 export default function FeatureCard({ icon, title, description }: Props) {
   return (
-    <div className="rounded-xl border border-textSecondary/20 bg-card p-6 hover:border-textSecondary/30 transition-colors shadow-sm">
+    <div className="rounded-xl border border-textSecondary/20 bg-card p-6 hover:border-textSecondary/30 transition-colors shadow-sm hover:shadow-md cursor-pointer">
       <div className="text-primary mb-3 text-2xl">
         {icon}
       </div>

@@ -1,9 +1,420 @@
 const express = require('express');
 const { getPool } = require('../db');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const multer = require('multer');
+const XLSX = require('xlsx');
+const csvParser = require('csv-parser');
+const { Readable } = require('stream');
 
 const router = express.Router();
 const pool = getPool();
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Helper to parse CSV buffer into array of objects
+function parseCsvBufferToJson(buffer) {
+  return new Promise((resolve, reject) => {
+    const results = [];
+    const stream = Readable.from(buffer.toString('utf8'));
+    stream
+      .pipe(csvParser())
+      .on('data', (data) => results.push(data))
+      .on('end', () => resolve(results))
+      .on('error', reject);
+  });
+}
+
+// Normalize a raw row to expected fields (case-insensitive header support)
+function norm(v) { return (v === undefined || v === null) ? '' : String(v).trim(); }
+function getField(row, names) {
+  // names: array of possible header names
+  for (const n of names) {
+    const key = Object.keys(row).find(k => k.toLowerCase() === n.toLowerCase());
+    if (key) return row[key];
+  }
+  return undefined;
+}
+
+function normalizeRow(row) {
+  // Expected headers: Exam, Subject, Unit, Topic, SubTopic, Difficulty, Text, A, B, C, D, CorrectAnswer
+  const exam = norm(getField(row, ['Exam', 'exam']));
+  const subject = norm(getField(row, ['Subject', 'subject']));
+  const unit = norm(getField(row, ['Unit', 'unit']));
+  const topic = norm(getField(row, ['Topic', 'topic']));
+  const subtopic = norm(getField(row, ['SubTopic', 'Subtopic', 'subtopic']));
+  const difficulty = norm(getField(row, ['Difficulty', 'difficulty']));
+  const text = norm(getField(row, ['Text', 'Question', 'QuestionText', 'text', 'question', 'questiontext']));
+  // Options: prefer canonical optionA-D if present from aliasing; fallback to single-letter keys
+  const A = norm(getField(row, ['optionA', 'OptionA', 'A', 'a', 'optiona']));
+  const B = norm(getField(row, ['optionB', 'OptionB', 'B', 'b', 'optionb']));
+  const C = norm(getField(row, ['optionC', 'OptionC', 'C', 'c', 'optionc']));
+  const D = norm(getField(row, ['optionD', 'OptionD', 'D', 'd', 'optiond']));
+  let correctRaw = norm(getField(row, ['correctAnswer', 'CorrectAnswer', 'Correct', 'correctanswer', 'correct']));
+
+  return { exam, subject, unit, topic, subtopic, difficulty, text, options: { A, B, C, D }, correctRaw };
+}
+
+function computeIsCorrect(label, correctRaw) {
+  if (!correctRaw) return false;
+  const val = correctRaw.toString().trim();
+  const map = { '1': 'A', '2': 'B', '3': 'C', '4': 'D' };
+  const upper = val.toUpperCase();
+  const normalized = map[upper] || upper; // map 1-4 to A-D, else keep A-D
+  return normalized === label.toUpperCase();
+}
+
+// Normalize object keys by trimming and lowercasing
+function normalizeObjectKeys(obj) {
+  const out = {};
+  for (const k of Object.keys(obj || {})) {
+    const nk = String(k).trim().toLowerCase();
+    out[nk] = obj[k];
+  }
+  return out;
+}
+
+// Map common header variations to canonical keys
+const HEADER_ALIASES = {
+  // Question text
+  'q.': 'text',
+  'q': 'text',
+  'question': 'text',
+  'question_text': 'text',
+  'question text': 'text',
+  'questiontext': 'text',
+  // Subject
+  'subject': 'subject',
+  // Exam
+  'exam name': 'exam',
+  // Unit / Chapter
+  'chapter': 'unit',
+  'unit': 'unit',
+  // Topic
+  'topic': 'topic',
+  // Subtopic
+  'sub-topic': 'subtopic',
+  'sub_topic': 'subtopic',
+  // Options
+  'option a': 'optionA',
+  'option_a': 'optionA',
+  'a.': 'optionA',
+  'a': 'optionA',
+  'option b': 'optionB',
+  'option_b': 'optionB',
+  'b.': 'optionB',
+  'b': 'optionB',
+  'option c': 'optionC',
+  'option_c': 'optionC',
+  'c.': 'optionC',
+  'c': 'optionC',
+  'option d': 'optionD',
+  'option_d': 'optionD',
+  'd.': 'optionD',
+  'd': 'optionD',
+  // Also map condensed option keys that may appear after normalization
+  'optiona': 'optionA',
+  'optionb': 'optionB',
+  'optionc': 'optionC',
+  'optiond': 'optionD',
+  // Correct answer
+  'correct': 'correctAnswer',
+  'correct_answer': 'correctAnswer',
+  'right_answer': 'correctAnswer',
+  'answer': 'correctAnswer',
+  'ans': 'correctAnswer',
+  'ans.': 'correctAnswer',
+  'correctanswer': 'correctAnswer',
+  // Difficulty variations
+  'difficulty level': 'difficulty',
+};
+
+// Parse paragraph-style exam blocks from a list of lines
+function parseParagraphBlocksFromLines(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return [];
+  const blocks = [];
+  const isOptionStart = (l) => /^\s*[ABCD]\./i.test(l);
+  const trimLine = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const extractMetaSegments = (line) => {
+    // Split on common inline separators and trim
+    return line.split(/\s*[/|;]\s*/).map(trimLine).filter(Boolean);
+  };
+  const applyMetaFromSegment = (seg, meta) => {
+    let m;
+    if (!meta.exam && (m = seg.match(/^EXAM\s*[:.-]\s*(.+)$/i))) meta.exam = trimLine(m[1]);
+    else if (!meta.subject && (m = seg.match(/^SUBJECT\s*[:.-]\s*(.+)$/i))) meta.subject = trimLine(m[1]);
+    else if (!meta.unit && (m = seg.match(/^UNIT\s*[:.-]\s*(.+)$/i))) meta.unit = trimLine(m[1]);
+    else if (!meta.topic && (m = seg.match(/^TOPIC\s*[:.-]\s*(.+)$/i))) meta.topic = trimLine(m[1]);
+    else if (!meta.subtopic && (m = seg.match(/^SUB[- ]?TOPIC\s*[:.-]\s*(.+)$/i))) meta.subtopic = trimLine(m[1]);
+    else if (!meta.difficulty && (m = seg.match(/^DIFFICULTY(?:\s*LEVEL)?\s*[:.-]\s*(.+)$/i))) meta.difficulty = trimLine(m[1]);
+  };
+  const extractQuestionFromLine = (line) => {
+    const m = line.match(/Q\.?\s*(.*?)(?=(?:\s+[ABCD]\.\s|\s*Ans\.|$))/i);
+    return m ? trimLine(m[1]) : '';
+  };
+  const extractOptionsFromLine = (line) => {
+    const out = {};
+    // Require the option letter to be followed by a dot to avoid matching letters inside words
+    // Capture until next option letter with dot, or Ans., or end
+    const re = /(?:^|\s)([ABCD])\.\s*([^]*?)(?=(?:\s+[ABCD]\.\s|\s*Ans\.|$))/gi;
+    let mm;
+    while ((mm = re.exec(line)) !== null) {
+      const label = (mm[1] || '').toUpperCase();
+      const text = trimLine(mm[2] || '');
+      if (text) out[label] = text;
+    }
+    return out; // keys A/B/C/D if found
+  };
+  const extractAnswerFromLine = (line) => {
+    const m = line.match(/Ans\.?\s*[:.-]?\s*([A-D1-4])/i);
+    return m ? m[1].toUpperCase() : '';
+  };
+
+  let i = 0;
+  while (i < lines.length) {
+    let exam = '', subject = '', unit = '', topic = '', subtopic = '', difficulty = '';
+    // Collect metadata tokens until we hit a question token or end
+    while (i < lines.length) {
+      const raw = lines[i];
+      const line = trimLine(raw);
+      if (!line) { i++; continue; }
+      if (/^\s*Q\./i.test(line)) break;
+      // Extract meta from segments within this line
+      const meta = { exam, subject, unit, topic, subtopic, difficulty };
+      for (const seg of extractMetaSegments(line)) {
+        applyMetaFromSegment(seg, meta);
+      }
+      ({ exam, subject, unit, topic, subtopic, difficulty } = meta);
+      i++;
+      if (i < lines.length && /^\s*Q\./i.test(trimLine(lines[i]))) break;
+    }
+    if (i >= lines.length) break;
+
+    // Question line
+    let questionText = '';
+    if (/^\s*Q\./i.test(trimLine(lines[i]))) {
+      const qline = trimLine(lines[i]);
+      questionText = extractQuestionFromLine(qline);
+      // Also try to extract inline options/answer present on the same line
+      const inlineOptions = extractOptionsFromLine(qline);
+      var optionA = inlineOptions['A'] || '';
+      var optionB = inlineOptions['B'] || '';
+      var optionC = inlineOptions['C'] || '';
+      var optionD = inlineOptions['D'] || '';
+      var answer = extractAnswerFromLine(qline) || '';
+      i++;
+    }
+    // Options A-D and answer in subsequent lines (may include multiple options per line)
+    optionA = optionA || ''; optionB = optionB || ''; optionC = optionC || ''; optionD = optionD || '';
+    answer = answer || '';
+    while (i < lines.length) {
+      const line = trimLine(lines[i]);
+      if (!line) { i++; continue; }
+      // If next question or new meta starts, stop gathering for this block
+      if (/^\s*Q\./i.test(line)) break;
+      if (/EXAM\s*[:.-]|SUBJECT\s*[:.-]|UNIT\s*[:.-]|TOPIC\s*[:.-]|SUB[- ]?TOPIC\s*[:.-]|DIFFICULTY/i.test(line)) break;
+  // Extract any options present in this line (must be letter followed by a dot)
+  const opts = extractOptionsFromLine(line);
+      if (!optionA && opts['A']) optionA = opts['A'];
+      if (!optionB && opts['B']) optionB = opts['B'];
+      if (!optionC && opts['C']) optionC = opts['C'];
+      if (!optionD && opts['D']) optionD = opts['D'];
+      if (!answer) answer = extractAnswerFromLine(line) || '';
+      // If line contained neither options nor answer, and we have question text, treat as continuation of question
+      if (!Object.keys(opts).length && !extractAnswerFromLine(line) && questionText) {
+        questionText = (questionText + ' ' + line).trim();
+      }
+      // If we hit another metadata or a new question, stop this block
+      i++;
+    }
+    // Construct block if we at least have question + options + answer
+    const block = {
+      exam, subject, unit, topic, subtopic, difficulty,
+      text: questionText,
+      optionA, optionB, optionC, optionD,
+      correctAnswer: answer,
+    };
+    // Only push blocks that have at least a question and one option/answer; validation will enforce strictness later
+    if (block.text || block.optionA || block.optionB || block.optionC || block.optionD) {
+      blocks.push(block);
+    }
+    // Skip forward until we hit a blank or next question/meta to avoid infinite loops
+    while (i < lines.length) {
+      const peek = trimLine(lines[i]);
+      if (!peek) { i++; continue; }
+      if (/^\s*Q\.|EXAM\s*[:.-]|SUBJECT\s*[:.-]|UNIT\s*[:.-]|TOPIC\s*[:.-]|SUB[- ]?TOPIC\s*[:.-]|DIFFICULTY/i.test(peek)) break;
+      i++;
+    }
+  }
+  return blocks;
+}
+
+function applyHeaderAliases(obj) {
+  const out = { ...obj };
+  for (const alias of Object.keys(HEADER_ALIASES)) {
+    const canonical = HEADER_ALIASES[alias];
+    if (Object.prototype.hasOwnProperty.call(out, alias)) {
+      if (!Object.prototype.hasOwnProperty.call(out, canonical) || out[canonical] === undefined || out[canonical] === '') {
+        out[canonical] = out[alias];
+      }
+    }
+  }
+  return out;
+}
+
+// POST /api/questions/bulk (admin only)
+router.post('/bulk', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded. Use form field name "file".' });
+    }
+    const { originalname, buffer, mimetype } = req.file;
+    console.log('Bulk upload received file:', { originalname, mimetype, size: buffer?.length });
+    const lower = originalname.toLowerCase();
+    let rows = [];
+    try {
+      if (lower.endsWith('.csv') || mimetype === 'text/csv' || mimetype === 'application/vnd.ms-excel') {
+        rows = await parseCsvBufferToJson(buffer);
+      } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+        const wb = XLSX.read(buffer, { type: 'buffer' });
+        const first = wb.SheetNames[0];
+        const ws = wb.Sheets[first];
+        rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      } else {
+        return res.status(400).json({ error: 'Unsupported file type. Please upload .csv or .xlsx' });
+      }
+    } catch (parseErr) {
+      console.error('Bulk upload parse error:', parseErr);
+      return res.json({ success: false, inserted: 0, skipped: 0 });
+    }
+
+    // Try to detect and parse paragraph-style files from parsed rows
+    try {
+      const candidateLines = Array.isArray(rows)
+        ? rows
+            .map(r => Object.values(r || {}).map(v => (v === undefined || v === null ? '' : String(v))).join(' '))
+            .map(s => s.replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+        : [];
+      const containsParagraphMarkers = candidateLines.some(l => /(EXAM:|\bQ\.|Ans\.)/i.test(l));
+      if (containsParagraphMarkers) {
+        const paraBlocks = parseParagraphBlocksFromLines(candidateLines);
+        if (paraBlocks && paraBlocks.length > 0) {
+          console.log('Paragraph-style detected. Parsed blocks:', paraBlocks.length);
+          rows = paraBlocks;
+        }
+      }
+    } catch (e) {
+      console.warn('Paragraph-style detection error (ignored):', e?.message || e);
+    }
+
+    // Normalize headers for each row (trim + lowercase) and apply common aliases
+    rows = Array.isArray(rows) ? rows.map((r) => applyHeaderAliases(normalizeObjectKeys(r))) : [];
+
+    // Log raw headers (after normalization/alias) and first row keys explicitly
+    if (Array.isArray(rows) && rows.length > 0) {
+      try {
+        console.log('Object.keys(first row):', Object.keys(rows[0]));
+      } catch {}
+    }
+
+    const headers = Array.isArray(rows) && rows.length > 0 ? Object.keys(rows[0]) : [];
+    console.log('Normalized headers:', headers);
+  console.log('Normalized rows sample (first 2):', rows.slice(0, 2));
+    console.log('Total parsed rows:', rows.length);
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.json({ success: false, error: 'No rows parsed. Please check file format.' });
+    }
+
+    // Skip completely empty rows (all values empty/whitespace)
+    rows = rows.filter(r => {
+      return Object.values(r).some(v => {
+        if (v === null || v === undefined) return false;
+        const s = String(v).trim();
+        return s.length > 0;
+      });
+    });
+
+  let insertedCount = 0;
+  let skippedCount = 0;
+  let missingFieldsCount = 0;
+  let invalidCorrectCount = 0;
+  let dbErrorCount = 0;
+    for (const rawRow of rows) {
+      const r = normalizeRow(rawRow);
+      // Validation for required fields (relaxed: exam/unit/topic/subtopic optional)
+      const requiredMissing = !r.subject || !r.difficulty || !r.text
+        || !r.options.A || !r.options.B || !r.options.C || !r.options.D || !r.correctRaw;
+      if (requiredMissing) {
+        skippedCount += 1;
+        missingFieldsCount += 1;
+        continue;
+      }
+      // Validate correct answer letter maps to a provided option
+      const val = r.correctRaw.toString().trim();
+      const map = { '1': 'A', '2': 'B', '3': 'C', '4': 'D' };
+      const upper = val.toUpperCase();
+      const correctLetter = map[upper] || upper; // A-D expected
+      if (!['A','B','C','D'].includes(correctLetter) || !r.options[correctLetter] || r.options[correctLetter].length === 0) {
+        skippedCount += 1;
+        invalidCorrectCount += 1;
+        continue;
+      }
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        // Default type to 'mcq' for bulk
+        const [qResult] = await conn.query(
+          'INSERT INTO `questions` (`text`, `subject`, `difficulty`, `type`, `exam`, `unit`, `topic`, `subtopic`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [r.text, r.subject, r.difficulty, 'mcq', r.exam || null, r.unit || null, r.topic || null, r.subtopic || null]
+        );
+        const questionId = qResult.insertId;
+
+        const optionTuples = [];
+        const entries = [ ['A', r.options.A], ['B', r.options.B], ['C', r.options.C], ['D', r.options.D] ];
+        for (const [label, option_text] of entries) {
+          if (option_text && option_text.length > 0) {
+            optionTuples.push([questionId, label, option_text, computeIsCorrect(label, r.correctRaw) ? 1 : 0]);
+          }
+        }
+        if (optionTuples.length === 0) {
+          // If no options present, rollback and skip
+          await conn.rollback();
+          conn.release();
+          skippedCount += 1;
+          continue;
+        }
+        const placeholders = optionTuples.map(() => '(?, ?, ?, ?)').join(',');
+        await conn.query(
+          `INSERT INTO \`options\` (\`question_id\`, \`label\`, \`option_text\`, \`is_correct\`) VALUES ${placeholders}`,
+          optionTuples.flat()
+        );
+        await conn.commit();
+        insertedCount += 1;
+      } catch (err) {
+        try { await conn.rollback(); } catch {}
+        console.error('Bulk insert row error:', err);
+        skippedCount += 1;
+        dbErrorCount += 1;
+      } finally {
+        try { conn.release(); } catch {}
+      }
+    }
+
+    return res.json({
+      success: true,
+      inserted: insertedCount,
+      skipped: skippedCount,
+      reasons: {
+        missingFields: missingFieldsCount,
+        invalidCorrect: invalidCorrectCount,
+        dbError: dbErrorCount
+      }
+    });
+  } catch (err) {
+    console.error('Bulk upload error:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 // POST /api/questions (admin only)
 router.post('/', authenticateToken, requireAdmin, async (req, res) => {

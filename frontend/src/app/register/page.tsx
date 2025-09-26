@@ -1,12 +1,13 @@
 "use client";
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/axios';
 import { useAuth } from '@/context/AuthContext';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, role } = useAuth();
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
@@ -15,9 +16,20 @@ export default function RegisterPage() {
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    if (!role) return;
-    router.replace('/questions');
-  }, [role, router]);
+    const next = searchParams.get('next');
+    if (typeof window !== 'undefined' && next) {
+      try { window.sessionStorage.setItem('nextPath', next); } catch {}
+    }
+    if (role) {
+      const storedNext = typeof window !== 'undefined' ? window.sessionStorage.getItem('nextPath') : null;
+      if (storedNext) {
+        if (typeof window !== 'undefined') window.sessionStorage.removeItem('nextPath');
+        router.replace(storedNext);
+      } else {
+        router.replace('/questions');
+      }
+    }
+  }, [role, router, searchParams]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,8 +39,8 @@ export default function RegisterPage() {
       const res = await api.post('/api/auth/register', { name, email, password });
       const { token, user } = res.data || {};
       if (!token || !user) throw new Error('Invalid response');
-      login(token, user);
-      router.push('/questions');
+  // login() will handle redirect using next/sessionStorage
+  login(token, user);
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Registration failed';
       setError(msg);

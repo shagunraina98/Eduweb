@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLoginRedirect } from '@/lib/useLoginRedirect';
 import api from '@/lib/axios';
 import { useAuth } from '@/context/AuthContext';
 
@@ -57,6 +58,7 @@ interface QuizResult {
 export default function QuizPage() {
   const router = useRouter();
   const { token, id: userId } = useAuth();
+  const { loginUrl } = useLoginRedirect();
   
   const [filters, setFilters] = useState<QuizFilters>({
     exam: '',
@@ -89,9 +91,12 @@ export default function QuizPage() {
   // Require login: if user not logged in, immediately redirect to /login (no message)
   useEffect(() => {
     if (!token) {
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        try { window.sessionStorage.setItem('nextPath', window.location.pathname + window.location.search + window.location.hash); } catch {}
+      }
+      router.push(loginUrl);
     }
-  }, [token, router]);
+  }, [token, router, loginUrl]);
 
   // Load filter options only when authenticated
   useEffect(() => {
@@ -276,7 +281,10 @@ export default function QuizPage() {
   const submitQuiz = async () => {
     // Check authentication
     if (!token || !userId) {
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        try { window.sessionStorage.setItem('nextPath', window.location.pathname + window.location.search + window.location.hash); } catch {}
+      }
+      router.push(loginUrl);
       return;
     }
 

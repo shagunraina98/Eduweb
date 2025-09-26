@@ -2,21 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLoginRedirect } from '@/lib/useLoginRedirect';
 import api from '@/lib/axios';
 import { useAuth } from '@/context/AuthContext';
 
 interface AttemptAnswer {
   question_id: number;
+  question_text?: string;
   selected_option_id: number;
   selected_text: string;
   correct_option_id: number;
   correct_text: string;
+  is_correct?: boolean;
+  options?: { id: number; label: string; option_text: string; is_correct?: boolean }[];
 }
 
 interface QuizAttempt {
   id: number;
   score: number;
-  total: number;
+  total_questions: number;
   created_at: string;
   answers: AttemptAnswer[];
 }
@@ -24,6 +28,7 @@ interface QuizAttempt {
 export default function QuizAttemptsPage() {
   const router = useRouter();
   const { token, user } = useAuth();
+  const { loginUrl } = useLoginRedirect();
   
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,12 +38,14 @@ export default function QuizAttemptsPage() {
   // Check authentication and fetch attempts
   useEffect(() => {
     if (!token || !user) {
-      router.push('/login');
+      if (typeof window !== 'undefined') {
+        try { window.sessionStorage.setItem('nextPath', window.location.pathname + window.location.search + window.location.hash); } catch {}
+      }
+      router.push(loginUrl);
       return;
     }
-
     fetchAttempts();
-  }, [token, user, router]);
+  }, [token, user, router, loginUrl]);
 
   const fetchAttempts = async () => {
     try {
@@ -50,7 +57,10 @@ export default function QuizAttemptsPage() {
     } catch (err: any) {
       console.error('Error fetching quiz attempts:', err);
       if (err.response?.status === 401) {
-        router.push('/login');
+        if (typeof window !== 'undefined') {
+          try { window.sessionStorage.setItem('nextPath', window.location.pathname + window.location.search + window.location.hash); } catch {}
+        }
+        router.push(loginUrl);
       } else {
         setError('Failed to load quiz attempts. Please try again.');
       }
@@ -151,7 +161,8 @@ export default function QuizAttemptsPage() {
         <div className="space-y-4">
           {attempts.map((attempt) => {
             const isExpanded = expandedAttempts.has(attempt.id);
-            const percentage = Math.round((attempt.score / attempt.total) * 100);
+            const totalQ = attempt.total_questions ?? (attempt as any).total ?? attempt.answers.length;
+            const percentage = Math.round((attempt.score / Math.max(1, totalQ)) * 100);
             
             return (
               <div key={attempt.id} className="bg-card border border-textSecondary/20 rounded-lg overflow-hidden">
@@ -162,9 +173,9 @@ export default function QuizAttemptsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className={`px-3 py-1 rounded-full border ${getScoreBadgeColor(attempt.score, attempt.total)}`}>
+                      <div className={`px-3 py-1 rounded-full border ${getScoreBadgeColor(attempt.score, totalQ)}`}>
                         <span className="font-semibold">
-                          {attempt.score}/{attempt.total}
+                          {attempt.score}/{totalQ}
                         </span>
                       </div>
                       <div>
@@ -179,7 +190,7 @@ export default function QuizAttemptsPage() {
                     
                     <div className="flex items-center space-x-4">
                       <div className="text-right">
-                        <div className={`text-2xl font-bold ${getScoreColor(attempt.score, attempt.total)}`}>
+                        <div className={`text-2xl font-bold ${getScoreColor(attempt.score, totalQ)}`}>
                           {percentage}%
                         </div>
                         <div className="text-textSecondary text-sm">
@@ -205,14 +216,20 @@ export default function QuizAttemptsPage() {
                     <h4 className="text-lg font-medium text-textPrimary mb-4">Question Details</h4>
                     <div className="space-y-4">
                       {attempt.answers.map((answer, index) => {
-                        const isCorrect = answer.selected_option_id === answer.correct_option_id;
+                        const isCorrect = answer.is_correct ?? (answer.selected_option_id === answer.correct_option_id);
+                        const opts = answer.options || [];
+                        const selectedId = answer.selected_option_id;
+                        const selectedLabel = opts.find(o => o.id === selectedId)?.label;
                         
                         return (
                           <div key={`${attempt.id}-${answer.question_id}`} className="bg-background rounded-lg p-4 border border-textSecondary/20">
                             <div className="flex items-start justify-between mb-3">
-                              <h5 className="text-textPrimary font-medium">
-                                Question {index + 1}
-                              </h5>
+                              <div>
+                                <h5 className="text-textPrimary font-medium">Question {index + 1}</h5>
+                                {answer.question_text && (
+                                  <p className="text-textPrimary mt-1">{answer.question_text}</p>
+                                )}
+                              </div>
                               <span className={`px-2 py-1 rounded text-sm font-medium ${
                                 isCorrect 
                                   ? 'bg-green-100 text-green-700' 
@@ -221,30 +238,25 @@ export default function QuizAttemptsPage() {
                                 {isCorrect ? 'Correct' : 'Incorrect'}
                               </span>
                             </div>
-                            
-                            <div className="space-y-2">
-                              {/* Selected Answer */}
-                              <div className={`p-3 rounded ${
-                                isCorrect 
-                                  ? 'bg-green-50 border border-green-200' 
-                                  : 'bg-red-50 border border-red-200'
-                              }`}>
-                                <span className="text-textPrimary font-medium">Your answer: </span>
-                                <span className={isCorrect ? 'text-green-700' : 'text-red-700'}>
-                                  {answer.selected_text}
-                                </span>
-                              </div>
-                              
-                              {/* Correct Answer (if different) */}
-                              {!isCorrect && (
-                                <div className="p-3 rounded bg-green-50 border border-green-200">
-                                  <span className="text-textPrimary font-medium">Correct answer: </span>
-                                  <span className="text-green-700">
-                                    {answer.correct_text}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+
+                            {/* Options list with highlighting */}
+                            <ul className="mt-3 space-y-2">
+                              {opts.map((opt) => {
+                                const isCorrectOpt = opt.is_correct === true;
+                                const wrongSelected = opt.label === selectedLabel && !isCorrectOpt;
+                                const classes = wrongSelected
+                                  ? 'bg-red-100 text-red-800 border border-red-400 rounded'
+                                  : isCorrectOpt
+                                    ? 'bg-green-100 text-green-800 border border-green-400 rounded'
+                                    : 'bg-white text-black rounded';
+                                return (
+                                  <li key={opt.id} className={`p-3 ${classes}`}>
+                                    <span className="font-medium mr-2 text-textPrimary">{opt.label}.</span>
+                                    <span>{opt.option_text}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
                           </div>
                         );
                       })}

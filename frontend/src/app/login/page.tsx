@@ -1,11 +1,12 @@
 "use client";
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/axios';
 import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, role } = useAuth();
 
   const [email, setEmail] = React.useState('');
@@ -13,11 +14,26 @@ export default function LoginPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
-  // If already logged in, go to dashboard
+  // Store next path if provided, and if already logged in navigate to it
   React.useEffect(() => {
-    if (!role) return;
-    router.replace('/dashboard');
-  }, [role, router]);
+    const next = searchParams.get('next');
+    if (typeof window !== 'undefined' && next) {
+      // Save next path for post-login redirect in case the URL changes
+      window.sessionStorage.setItem('nextPath', next);
+    }
+    if (role) {
+      // If user is already logged in, prefer redirecting to next if available
+      const storedNext = typeof window !== 'undefined' ? window.sessionStorage.getItem('nextPath') : null;
+      if (storedNext) {
+        window.sessionStorage.removeItem('nextPath');
+        router.replace(storedNext);
+      } else if (role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/');
+      }
+    }
+  }, [role, router, searchParams]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,8 +43,8 @@ export default function LoginPage() {
       const res = await api.post('/api/auth/login', { email, password });
       const { token, user } = res.data || {};
       if (!token || !user) throw new Error('Invalid response');
+      // AuthContext handles redirect using next/sessionStorage
       login(token, user);
-  // AuthContext will redirect to /dashboard
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Invalid email or password';
       setError(msg);
