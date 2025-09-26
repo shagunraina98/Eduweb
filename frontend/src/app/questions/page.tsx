@@ -54,8 +54,13 @@ export default function QuestionsPage() {
     type: []
   });
   const [loading, setLoading] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [total, setTotal] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [visibleAnswers, setVisibleAnswers] = React.useState<Record<number, boolean>>({});
+  const limit = 10;
+  const sentinelRef = React.useRef<HTMLDivElement | null>(null);
 
   // Ensure questions is always an array
   const safeQuestions = Array.isArray(questions) ? questions : [];
@@ -83,12 +88,32 @@ export default function QuestionsPage() {
     // no-op: keep for future analytics if needed
   }, []);
 
-  // Fetch questions and filters from the enhanced /api/questions endpoint
-  const fetchQuestionsAndFilters = React.useCallback(async () => {
+  // Fetch global filter options once (or on demand)
+  const fetchGlobalFilters = React.useCallback(async () => {
+    try {
+      const fo = await api.get('/api/filters', { headers: { 'X-Skip-Auth': 'true' } });
+      const f = fo.data || {};
+      setFilterOptions({
+        exam: Array.isArray(f.exams) ? f.exams : [],
+        subject: Array.isArray(f.subjects) ? f.subjects : [],
+        unit: Array.isArray(f.units) ? f.units : [],
+        topic: Array.isArray(f.topics) ? f.topics : [],
+        subtopic: Array.isArray(f.subtopics) ? f.subtopics : [],
+        difficulty: Array.isArray(f.difficulties) ? f.difficulties : [],
+        type: Array.isArray(f.types) ? f.types : []
+      });
+    } catch {
+      // ignore filters load error
+    }
+  }, []);
+
+  // Fetch a specific page and append/replace
+  const fetchPage = React.useCallback(async (pageToFetch: number, replace = false) => {
+    if (loading) return;
     setLoading(true);
     setError(null);
     try {
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = { page: pageToFetch, limit };
       if (subject) params.subject = subject;
       if (difficulty) params.difficulty = difficulty;
       if (qtype) params.type = qtype;
@@ -96,70 +121,75 @@ export default function QuestionsPage() {
       if (unit) params.unit = unit;
       if (topic) params.topic = topic;
       if (subtopic) params.subtopic = subtopic;
-      
-      const res = await api.get<QuestionsResponse>('/api/questions', { 
+
+      const res = await api.get('/api/questions', {
         params,
         headers: { 'X-Skip-Auth': 'true' }
       });
-      
-      // Handle both old and new API structures
-      let questionsData: Question[] = [];
-      let filtersData: FilterOptions = {
-        exam: [],
-        subject: [],
-        unit: [],
-        topic: [],
-        subtopic: [],
-        difficulty: [],
-        type: []
-      };
-      
-      if (Array.isArray(res.data)) {
-        // Old API structure: returns array directly
-        questionsData = res.data;
-        
-        // Extract unique filter values from questions
-        const extractUniqueValues = (field: keyof Question) => {
-          return [...new Set(questionsData
-            .map(q => q[field])
-            .filter(value => value && value !== null && value !== '')
-            .map(value => String(value))
-          )].sort();
-        };
-        
-        filtersData = {
-          exam: extractUniqueValues('exam'),
-          subject: extractUniqueValues('subject'),
-          unit: extractUniqueValues('unit'),
-          topic: extractUniqueValues('topic'),
-          subtopic: extractUniqueValues('subtopic'),
-          difficulty: extractUniqueValues('difficulty'),
-          type: extractUniqueValues('type')
-        };
-      } else if (res.data && typeof res.data === 'object') {
-        // New API structure: returns {questions: [...], filters: {...}}
-        questionsData = res.data.questions || [];
-        filtersData = res.data.filters || filtersData;
+
+      const data: any = res.data;
+      const pageQuestions: Question[] = Array.isArray(data) ? data : (Array.isArray(data?.questions) ? data.questions : []);
+      const totalFromApi: number | null = data?.pagination?.total ?? null;
+      if (typeof totalFromApi === 'number') setTotal(totalFromApi);
+
+      setQuestions(prev => {
+        const nextList = replace ? pageQuestions : [...prev, ...pageQuestions];
+        // Deduplicate by id
+        const seen = new Set<number>();
+        const deduped: Question[] = [];
+        for (const q of nextList) {
+          if (!seen.has(q.id)) { seen.add(q.id); deduped.push(q); }
+        }
+        return deduped;
+      });
+
+      // Update hasMore
+      const newCount = (replace ? 0 : questions.length) + pageQuestions.length;
+      if (totalFromApi != null) {
+        setHasMore(newCount < totalFromApi);
+      } else {
+        // If total unknown (legacy), infer by page size
+        setHasMore(pageQuestions.length === limit);
       }
-      
-      // Update questions from the response
-      setQuestions(questionsData);
-      
-      // Update filter options from the response
-      setFilterOptions(filtersData);
+
+      setPage(pageToFetch);
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Failed to fetch questions and filters';
+      const msg = err?.response?.data?.error || 'Failed to fetch questions';
       setError(msg);
-      setQuestions([]); // Ensure questions is always an array
-      // Keep existing filter options on error
+      if (pageToFetch === 1) setQuestions([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
-  }, [token, subject, difficulty, qtype, exam, unit, topic, subtopic]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subject, difficulty, qtype, exam, unit, topic, subtopic, limit, questions.length, loading]);
 
+  // Initial load
   React.useEffect(() => {
-    fetchQuestionsAndFilters();
-  }, [fetchQuestionsAndFilters]);
+    fetchGlobalFilters();
+    // Reset and load first page
+    setQuestions([]);
+    setPage(1);
+    setHasMore(true);
+    setTotal(null);
+    fetchPage(1, true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // IntersectionObserver to load more when sentinel in view
+  React.useEffect(() => {
+    if (!sentinelRef.current) return;
+    const el = sentinelRef.current;
+    const observer = new IntersectionObserver((entries) => {
+      const first = entries[0];
+      if (first.isIntersecting && hasMore && !loading) {
+        const nextPage = page + 1;
+        fetchPage(nextPage);
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loading, page, fetchPage]);
 
   function clearFilters() {
     setSubject('');
@@ -169,6 +199,21 @@ export default function QuestionsPage() {
     setUnit('');
     setTopic('');
     setSubtopic('');
+    // Reset list and fetch first page with cleared filters
+    setQuestions([]);
+    setPage(1);
+    setHasMore(true);
+    setTotal(null);
+    fetchPage(1, true);
+  }
+
+  async function applyFilters() {
+    // Reset list and fetch first page with current filters
+    setQuestions([]);
+    setPage(1);
+    setHasMore(true);
+    setTotal(null);
+    await fetchPage(1, true);
   }
 
   function toggleAnswerVisibility(questionId: number) {
@@ -279,7 +324,7 @@ export default function QuestionsPage() {
       
       <div className="mb-6 flex gap-2">
         <button
-          onClick={fetchQuestionsAndFilters}
+          onClick={applyFilters}
           className="rounded-md bg-primary hover:opacity-90 text-white px-4 py-2 font-medium"
         >
           Apply Filters
@@ -298,14 +343,15 @@ export default function QuestionsPage() {
         </div>
       )}
 
-      {loading ? (
-        <div>Loading…</div>
+      {/* Initial loading state */}
+      {loading && page === 1 && safeQuestions.length === 0 ? (
+        <div className="text-center py-8 text-textSecondary">Loading…</div>
       ) : !Array.isArray(safeQuestions) || safeQuestions.length === 0 ? (
         <div>No questions found.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {safeQuestions.map((q) => (
-            <div key={q.id} className="bg-card border border-textSecondary/20 rounded-lg shadow p-4">
+            <div key={q.id} className="bg-card border border-textSecondary/20 rounded-lg shadow p-4 transition-shadow duration-200 hover:shadow-md">
               <div className="mb-2">
                 {/* Only show question text now */}
                 <h2 className="text-lg font-semibold text-textPrimary mt-2">{q.text}</h2>
@@ -339,6 +385,16 @@ export default function QuestionsPage() {
               </div>
             </div>
           ))}
+          {/* Loading more indicator */}
+          {loading && page > 1 && (
+            <div className="col-span-full text-center py-4 text-textSecondary">Loading more...</div>
+          )}
+          {/* No more indicator */}
+          {!loading && !hasMore && safeQuestions.length > 0 && (
+            <div className="col-span-full text-center py-4 text-textSecondary">No more questions</div>
+          )}
+          {/* Sentinel for intersection observer */}
+          <div ref={sentinelRef} className="col-span-full h-1" />
         </div>
       )}
     </div>

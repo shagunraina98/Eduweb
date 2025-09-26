@@ -78,8 +78,10 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<QuestionItem[]>('/api/questions');
-      setItems(res.data || []);
+      const res = await api.get('/api/questions');
+      const data = res.data;
+      const list: QuestionItem[] = Array.isArray(data) ? data : Array.isArray(data?.questions) ? data.questions : [];
+      setItems(list);
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Failed to load questions';
       setError(msg);

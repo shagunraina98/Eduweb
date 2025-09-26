@@ -509,7 +509,13 @@ router.get('/filters', async (req, res) => {
 // GET /api/questions (public)
 router.get('/', async (req, res) => {
   try {
-    const { subject, difficulty, type, exam, unit, topic, subtopic } = req.query || {};
+    const { subject, difficulty, type, exam, unit, topic, subtopic, sub_topic } = req.query || {};
+    // Pagination params
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.max(Math.min(parseInt(req.query.limit, 10) || 10, 100), 1); // cap limit to 100
+    const offset = (page - 1) * limit;
+
+    // Build filters
     const filters = [];
     const values = [];
     if (subject) { filters.push('q.`subject` = ?'); values.push(subject); }
@@ -518,18 +524,43 @@ router.get('/', async (req, res) => {
     if (exam) { filters.push('q.`exam` = ?'); values.push(exam); }
     if (unit) { filters.push('q.`unit` = ?'); values.push(unit); }
     if (topic) { filters.push('q.`topic` = ?'); values.push(topic); }
-    if (subtopic) { filters.push('q.`subtopic` = ?'); values.push(subtopic); }
+    // Accept both subtopic and sub_topic
+    const subtopicValue = subtopic || sub_topic;
+    if (subtopicValue) { filters.push('q.`subtopic` = ?'); values.push(subtopicValue); }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-    const [rows] = await pool.query(
-      `SELECT q.id AS question_id, q.\`text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`, 
-        q.\`exam\`, q.\`unit\`, q.\`topic\`, q.\`subtopic\`,
-        o.id AS option_id, o.\`label\`, o.\`option_text\`, o.\`is_correct\`
-   FROM \`questions\` q
-   LEFT JOIN \`options\` o ON o.\`question_id\` = q.id
-         ${where}
-         ORDER BY q.id, o.id`,
+
+    // 1) Count total with same filters
+    const [[countRow]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM \`questions\` q ${where}`,
       values
+    );
+    const total = Number(countRow?.total || 0);
+
+    if (total === 0) {
+      return res.json({ questions: [], pagination: { total: 0, page, limit } });
+    }
+
+    // 2) Get paged question ids
+    const [idRows] = await pool.query(
+      `SELECT q.id FROM \`questions\` q ${where} ORDER BY q.id LIMIT ? OFFSET ?`,
+      [...values, limit, offset]
+    );
+    const ids = idRows.map(r => r.id);
+    if (!ids.length) {
+      return res.json({ questions: [], pagination: { total, page, limit } });
+    }
+
+    // 3) Fetch questions + options for the selected ids
+    const [rows] = await pool.query(
+      `SELECT q.id AS question_id, q.\`text\`, q.\`subject\`, q.\`difficulty\`, q.\`type\`,
+              q.\`exam\`, q.\`unit\`, q.\`topic\`, q.\`subtopic\`,
+              o.id AS option_id, o.\`label\`, o.\`option_text\`, o.\`is_correct\`
+         FROM \`questions\` q
+         LEFT JOIN \`options\` o ON o.\`question_id\` = q.id
+        WHERE q.id IN (${ids.map(() => '?').join(',')})
+        ORDER BY q.id, o.id`,
+      ids
     );
 
     const map = new Map();
@@ -557,7 +588,11 @@ router.get('/', async (req, res) => {
         });
       }
     }
-    return res.json(Array.from(map.values()));
+
+    return res.json({
+      questions: Array.from(map.values()),
+      pagination: { total, page, limit }
+    });
   } catch (err) {
     console.error('List questions error:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
