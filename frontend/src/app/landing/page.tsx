@@ -45,8 +45,8 @@ export default function LandingPage() {
         <h2 className="text-2xl md:text-3xl font-bold text-blue-900">About the Instructors</h2>
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
           <div className="md:col-span-1">
-            <div className="relative h-56 w-full rounded-xl overflow-hidden border border-gray-200">
-              <Image src="/instructor-placeholder.jpg" alt="Instructor Bhisham Datt" fill className="object-cover" />
+            <div className="relative h-56 w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+              <Image src="https://vansh-attri.github.io/Educational-Website/Images/BD.jpg" alt="Instructor Bhisham Datt" fill className="object-cover" />
             </div>
           </div>
           <div className="md:col-span-2">
@@ -88,14 +88,14 @@ export default function LandingPage() {
         <h2 className="text-2xl font-bold text-center py-6 text-blue-900">Recommended Books for PGT / Commerce Exams</h2>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
-            { id: 1, title: 'Commerce PGT Exam Book 1', link: 'https://amzn.in/d/9nfC4vB', img: 'https://m.media-amazon.com/images/I/71pye9zQJtL._SL1500_.jpg' },
-            { id: 2, title: 'Accountancy PGT Exam Book 2', link: 'https://amzn.in/d/0bx9XRL', img: 'https://m.media-amazon.com/images/I/81IhLxZs5TL._SL1500_.jpg' },
-            { id: 3, title: 'Business Studies PGT Exam Book 3', link: 'https://amzn.in/d/ilHdGP8', img: 'https://m.media-amazon.com/images/I/81O7U0Q7QVL._SL1500_.jpg' },
+            { id: 1, title: 'Commerce PGT Exam Book 1', link: 'https://amzn.in/d/9nfC4vB', img: 'https://m.media-amazon.com/images/I/819A2X+MtdL._AC_UY327_FMwebp_QL65_.jpg' },
+            { id: 2, title: 'Accountancy PGT Exam Book 2', link: 'https://amzn.in/d/0bx9XRL', img: 'https://m.media-amazon.com/images/I/61cpjR+lWgL._AC_UY327_FMwebp_QL65_.jpg' },
+            { id: 3, title: 'Business Studies PGT Exam Book 3', link: 'https://amzn.in/d/ilHdGP8', img: 'https://m.media-amazon.com/images/I/91aXrIwzmiL._AC_UY327_FMwebp_QL65_.jpg' },
           ].map((b) => (
             <div key={b.id} className="border rounded-xl bg-white p-6 shadow hover:shadow-xl transition-transform">
               <h3 className="text-lg font-bold text-blue-900">{b.title}</h3>
-              <div className="relative w-full h-60 mt-4 rounded-lg overflow-hidden">
-                <Image src={b.img} alt={b.title} fill className="object-cover" />
+              <div className="relative w-full h-80 mt-4 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center">
+                <Image src={b.img} alt={b.title} fill className="object-contain" />
               </div>
               <a
                 href={b.link}
@@ -116,15 +116,65 @@ export default function LandingPage() {
           <h2 className="text-2xl md:text-3xl font-bold text-blue-900">Popular Courses</h2>
           <p className="text-gray-600 mt-2">YouTube playlists curated for exam success.</p>
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1,2,3,4,5,6].map((n) => (
-              <div key={n} className="rounded-xl border border-gray-200 overflow-hidden bg-white hover:shadow-md transition-shadow">
+            {[
+              {
+                id: 1,
+                title: 'Commerce Course Series 1',
+                description: 'Comprehensive playlist covering fundamental commerce concepts.',
+                link: 'https://youtube.com/playlist?list=PLloYqMn5Mvwv11BPq3WQuWSTYBaZFF09r&si=DQRnnA0nKK_wrM__',
+                thumbnail: 'https://i.ytimg.com/vi/K_2d3gj-yEE/hqdefault.jpg?sqp=-oaymwEXCNACELwBSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLAfszsIDg9ilSpswpCuXiRpgjpKUQ'
+              },
+              {
+                id: 2,
+                title: 'Advanced Commerce Topics',
+                description: 'Deep dive into advanced commerce and business studies.',
+                link: 'https://youtube.com/playlist?list=PLloYqMn5MvwsommDJfRpOXiQAv0cwzd9R&si=ZO4nux4xTXvV1i6k',
+                thumbnail: 'https://i.ytimg.com/vi/9gFa7LzxRtA/hqdefault.jpg?sqp=-oaymwExCNACELwBSFryq4qpAyMIARUAAIhCGAHwAQH4AdQGgALgA4oCDAgAEAEYZSBaKEIwDw==&rs=AOn4CLCCIeaviVALQPup8NOfXfggmIzHqQ'
+              },
+              {
+                id: 3,
+                title: 'Accountancy Fundamentals',
+                description: 'Essential accounting principles and practices.',
+                link: 'https://youtube.com/playlist?list=PLloYqMn5MvwvsB4ZSQyHPdt-PlvA9_Qeq&si=L_p1nteOQetk3zbb',
+                thumbnail: 'https://i.ytimg.com/vi/5Zo7HVUyhqg/hqdefault.jpg?sqp=-oaymwEXCNACELwBSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLCFV3GIwGhUOt2OdlZsHlN-Z2c1qg'
+              },
+              {
+                id: 4,
+                title: 'Business Studies Mastery',
+                description: 'Complete guide to business studies for competitive exams.',
+                link: 'https://youtube.com/playlist?list=PLloYqMn5MvwsOtKYCZ3-Awk0IFQCeFjnC&si=MepANZgMXX0HTC9z',
+                thumbnail: 'https://i.ytimg.com/vi/750Cvooubms/hqdefault.jpg?sqp=-oaymwExCNACELwBSFryq4qpAyMIARUAAIhCGAHwAQH4Af4JgALQBYoCDAgAEAEYciBCKDwwDw==&rs=AOn4CLDjVmmgWNzieV1Vw_rYF3FDgT7UyA'
+              },
+              {
+                id: 5,
+                title: 'Economics for PGT',
+                description: 'Economics concepts tailored for PGT exam preparation.',
+                link: 'https://youtube.com/playlist?list=PLloYqMn5MvwuG5sCQg3oz9siBowf7fzd3&si=92N_DH6qKlElx5Lm',
+                thumbnail: 'https://i.ytimg.com/vi/Xhek6iSu31g/hqdefault.jpg?sqp=-oaymwEXCNACELwBSFryq4qpAwkIARUAAIhCGAE=&rs=AOn4CLDazMS3eTIEn9pKBEvIof7_t5bTng'
+              },
+              {
+                id: 6,
+                title: 'Exam Strategy & Tips',
+                description: 'Strategic approach to PGT commerce examinations.',
+                link: 'https://youtube.com/playlist?list=PLloYqMn5Mvwv6D8Hzer2AGBJolYukIfDr&si=FkawY5d087r2-Zro',
+                thumbnail: 'https://i.ytimg.com/vi/Ha8Exeqo6ss/hqdefault.jpg?sqp=-oaymwExCNACELwBSFryq4qpAyMIARUAAIhCGAHwAQH4AdQGgALgA4oCDAgAEAEYXCBcKFwwDw==&rs=AOn4CLBk-D0THZ7ux3TGKGEIJ4NbQE3HVQ'
+              }
+            ].map((course) => (
+              <div key={course.id} className="rounded-xl border border-gray-200 overflow-hidden bg-white hover:shadow-md transition-shadow">
                 <div className="relative h-40 w-full bg-gray-100">
-                  <Image src={`/thumbnails/placeholder-${n}.jpg`} alt={`Course ${n}`} fill className="object-cover" />
+                  <Image src={course.thumbnail} alt={course.title} fill className="object-cover" />
                 </div>
                 <div className="p-4">
-                  <h3 className="font-semibold text-blue-800">Playlist Title {n}</h3>
-                  <p className="text-sm text-gray-600 mt-1">Short description about the playlist content.</p>
-                  <Link href="#" className="inline-flex mt-3 text-blue-700 hover:underline">Watch on YouTube →</Link>
+                  <h3 className="font-semibold text-blue-800">{course.title}</h3>
+                  <p className="text-sm text-gray-600 mt-1">{course.description}</p>
+                  <a 
+                    href={course.link} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="inline-flex mt-3 text-blue-700 hover:underline"
+                  >
+                    Watch on YouTube →
+                  </a>
                 </div>
               </div>
             ))}

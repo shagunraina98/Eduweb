@@ -8,9 +8,8 @@ export default function RootRedirect() {
   const { token } = useAuth();
 
   useEffect(() => {
-    if (token) router.replace('/home');
-    else router.replace('/landing');
-  }, [token, router]);
+    router.replace('/landing');
+  }, [router]);
 
   return null;
 }
