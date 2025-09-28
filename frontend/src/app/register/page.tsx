@@ -1,11 +1,11 @@
 "use client";
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/axios';
 import { useAuth } from '@/context/AuthContext';
 
-export default function RegisterPage() {
+function RegisterInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, role } = useAuth();
@@ -111,5 +111,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center text-gray-500">Loading…</div>}>
+      <RegisterInner />
+    </Suspense>
   );
 }
